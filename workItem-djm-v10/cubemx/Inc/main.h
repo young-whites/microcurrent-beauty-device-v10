@@ -36,7 +36,11 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+void SystemClock_Config(void);
+void MX_GPIO_Init(void);
+void MX_USART1_UART_Init(void);
+void MX_USART2_UART_Init(void);
+void MX_ADC1_Init(void);
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -50,13 +54,22 @@ extern "C" {
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
-void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define LARGE_HAND_NTC_ADC_Pin GPIO_PIN_0
+#define LARGE_HAND_NTC_ADC_GPIO_Port GPIOC
+#define SMALL_HAND_NTC_ADC_Pin GPIO_PIN_1
+#define SMALL_HAND_NTC_ADC_GPIO_Port GPIOC
+#define BEEP_Pin GPIO_PIN_7
+#define BEEP_GPIO_Port GPIOA
+#define LARGE_HAND_TEMP_CTRL_Pin GPIO_PIN_11
+#define LARGE_HAND_TEMP_CTRL_GPIO_Port GPIOC
+#define SMALL_HAND_TEMP_CTRL_Pin GPIO_PIN_12
+#define SMALL_HAND_TEMP_CTRL_GPIO_Port GPIOC
 
 /* USER CODE BEGIN Private defines */
 
