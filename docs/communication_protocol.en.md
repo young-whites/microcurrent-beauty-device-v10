@@ -184,8 +184,42 @@ typedef enum {
 | 0x06 | Enable SCD | [Enable] | Enable/disable short-circuit detection |
 | 0x07 | Reset chip | [ChipID] | Reset specified chip |
 | 0x08 | Read status | [ChipID] | Read chip status |
+| 0x09 | Current gear adjust | [Channel, GearLevel] | Adjust current output gear level |
 | 0x0A | Custom waveform | [Channel, PointNum, Data...] | Send custom waveform data |
 | 0x0B | Amplitude adjust | [Channel, Amplitude_H, Amplitude_L] | Real-time amplitude adjustment |
+
+### Current Gear Definitions
+
+| Gear | Value | Current Range | Description |
+|------|-------|---------------|-------------|
+| GEAR_1 | 0x01 | 0~100μA | Lowest gear, suitable for sensitive skin |
+| GEAR_2 | 0x02 | 100~200μA | Low gear |
+| GEAR_3 | 0x03 | 200~300μA | Medium-low gear |
+| GEAR_4 | 0x04 | 300~400μA | Medium gear |
+| GEAR_5 | 0x05 | 400~500μA | Medium-high gear |
+| GEAR_6 | 0x06 | 500~600μA | High gear |
+| GEAR_7 | 0x07 | 600~700μA | Highest gear |
+
+### Current Gear Adjust Command Format
+
+```
+Head1    Head2    Length  DeviceID  Type   Status  CmdCode  Channel  Gear   CRC16
+0x55     0xAA     0x07    00 48    0x44   0x02    0x09     CH      Gear   CRC
+```
+
+**Data Field Description**:
+- Channel: 0x00=CH0, 0x01=CH1
+- GearLevel: 0x01~0x07 corresponds to GEAR_1~GEAR_7
+
+**Usage Example**:
+```c
+// Set channel 0 to gear 4 (medium, 300~400μA)
+uint8_t cmd[2] = {0};
+cmd[0] = 0x00;  // Channel: CH0
+cmd[1] = 0x04;  // Gear: GEAR_4
+
+Protocol_Send_Command(2, FRAME_TYPE_ACT, FRAME_STATE_ASK, cmd);
+```
 
 ### Query Commands (FRAME_TYPE_GET = 0x45)
 

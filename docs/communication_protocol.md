@@ -184,8 +184,42 @@ typedef enum {
 | 0x06 | 使能SCD | [Enable] | 使能/禁用短路检测 |
 | 0x07 | 复位芯片 | [ChipID] | 复位指定芯片 |
 | 0x08 | 读取状态 | [ChipID] | 读取芯片状态 |
+| 0x09 | 电流挡位调节 | [Channel, GearLevel] | 调节电流输出档位 |
 | 0x0A | 自定义波形 | [Channel, PointNum, Data...] | 下发自定义波形数据 |
 | 0x0B | 幅度调节 | [Channel, Amplitude_H, Amplitude_L] | 实时调节幅度 |
+
+### 电流挡位定义
+
+| 档位 | 值 | 电流范围 | 说明 |
+|------|-----|----------|------|
+| GEAR_1 | 0x01 | 0~100μA | 最低档位，适合敏感肌肤 |
+| GEAR_2 | 0x02 | 100~200μA | 低档位 |
+| GEAR_3 | 0x03 | 200~300μA | 中低档位 |
+| GEAR_4 | 0x04 | 300~400μA | 中档位 |
+| GEAR_5 | 0x05 | 400~500μA | 中高档位 |
+| GEAR_6 | 0x06 | 500~600μA | 高档位 |
+| GEAR_7 | 0x07 | 600~700μA | 最高档位 |
+
+### 电流挡位调节命令格式
+
+```
+帧头1    帧头2    长度   设备ID   类型   状态   命令码   通道   挡位   CRC16
+0x55     0xAA     0x07   00 48   0x44   0x02   0x09    CH    Gear   CRC
+```
+
+**数据域说明**：
+- Channel: 0x00=CH0, 0x01=CH1
+- GearLevel: 0x01~0x07 对应 GEAR_1~GEAR_7
+
+**使用示例**：
+```c
+// 设置通道0为档位4（中档，300~400μA）
+uint8_t cmd[2] = {0};
+cmd[0] = 0x00;  // 通道：CH0
+cmd[1] = 0x04;  // 挡位：GEAR_4
+
+Protocol_Send_Command(2, FRAME_TYPE_ACT, FRAME_STATE_ASK, cmd);
+```
 
 ### 查询命令 (FRAME_TYPE_GET = 0x45)
 
