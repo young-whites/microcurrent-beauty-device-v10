@@ -82,6 +82,32 @@ void nnc6521_init(uint8_t chip_id);
 - Resets waveform generator
 - Configures clock and analog modules
 
+**Register Initialization Details**:
+
+```c
+// 1. PMU Control Register (0x01)
+// Bit[0]   pmuenable        = 0 (Chip normal operation mode)
+// Bit[1]   sleepdeep        = 0 (Not deep sleep)
+// Bit[2]   hresetreq        = 0 (No hardware reset request)
+// Bit[3]   otp_dpstb_en     = 0 (OTP power-down hold disabled)
+// Bit[4]   wave_gen_disable = 0 (Waveform generator enabled)
+// Bit[5]   wave_gen_rst     = 0 (Waveform generator not reset)
+// Bit[6]   lead_off_dis     = 0 (LOD enabled)
+// Bit[7]   lead_off_rst     = 0 (LOD not reset)
+nnc6521_write_reg(chip_id, PMU_REG_ADDR, 0x00);
+
+// 2. Clock Control Register (0x02)
+// Bit[2:0] pclk_div    = 000 (PCLK divider=1, system clock=2MHz)
+// Bit[3]   int_clk_out = 0 (Internal clock not output to pin)
+// Bit[7:4] reserved    = 0000 (Reserved bits)
+nnc6521_write_reg(chip_id, CLK_CTRL_REG_ADDR, 0x00);
+
+// 3. Waveform Generator Global Control Register 0 (0x03)
+// Bit[0]   global_drive_en = 1 (Global drive enabled)
+// Bit[7:1] reserved        = 0000000 (Reserved bits)
+nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);
+```
+
 **Usage Example**:
 ```c
 nnc6521_gpio_init();              // Initialize GPIO
@@ -586,3 +612,4 @@ Refer to `nnc6521_reg.h` for complete register addresses, union types, and struc
 | Version | Date | Description |
 |---------|------|-------------|
 | 1.0 | 2026-06-16 | Initial version |
+| 1.1 | 2026-06-16 | Added register bit-level descriptions for initialization |

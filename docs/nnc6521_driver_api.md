@@ -82,9 +82,35 @@ void nnc6521_init(uint8_t chip_id);
 - 复位波形发生器
 - 配置时钟和模拟模块
 
+**寄存器初始化详解**：
+
+```c
+// 1. PMU 控制寄存器 (0x01)
+// 位[0]   pmuenable        = 0 (芯片正常工作模式)
+// 位[1]   sleepdeep        = 0 (非深度睡眠)
+// 位[2]   hresetreq        = 0 (不请求硬件复位)
+// 位[3]   otp_dpstb_en     = 0 (OTP 掉电保持禁用)
+// 位[4]   wave_gen_disable = 0 (波形发生器使能)
+// 位[5]   wave_gen_rst     = 0 (波形发生器不复位)
+// 位[6]   lead_off_dis     = 0 (LOD 使能)
+// 位[7]   lead_off_rst     = 0 (LOD 不复位)
+nnc6521_write_reg(chip_id, PMU_REG_ADDR, 0x00);
+
+// 2. 时钟控制寄存器 (0x02)
+// 位[2:0] pclk_div    = 000 (PCLK 分频系数=1, 系统时钟=2MHz)
+// 位[3]   int_clk_out = 0 (内部时钟不输出到引脚)
+// 位[7:4] reserved    = 0000 (保留位)
+nnc6521_write_reg(chip_id, CLK_CTRL_REG_ADDR, 0x00);
+
+// 3. 波形发生器全局控制寄存器 0 (0x03)
+// 位[0]   global_drive_en = 1 (全局驱动使能)
+// 位[7:1] reserved        = 0000000 (保留位)
+nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);
+```
+
 **使用示例**：
 ```c
-nnc6521_gpio_init();      // 初始化 GPIO
+nnc6521_gpio_init();           // 初始化 GPIO
 nnc6521_init(NNC6521_CHIP_1);  // 初始化芯片 1
 nnc6521_init(NNC6521_CHIP_2);  // 初始化芯片 2
 ```
