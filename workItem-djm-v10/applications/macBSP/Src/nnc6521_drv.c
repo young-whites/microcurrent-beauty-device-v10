@@ -86,12 +86,9 @@ void nnc6521_awg_enable_disable(uint8_t chip_id, uint8_t AWG_ChannelNum,
                                 uint8_t Enable_Disable)
 {
     waveform_TypeDef wf = {0};
-    wf.WG_DRV_CTRL_REG0.value = nnc6521_read_wave_reg(chip_id,
-        WG_REG_ADDR(AWG_ChannelNum, WG_DRV_CTRL_REG0_OFFSET));
+    wf.WG_DRV_CTRL_REG0.value = nnc6521_read_wave_reg(chip_id, WG_REG_ADDR(AWG_ChannelNum, WG_DRV_CTRL_REG0_OFFSET));
     wf.WG_DRV_CTRL_REG0.bits.enable_wavegen = Enable_Disable;
-    nnc6521_write_wave_reg(chip_id,
-        WG_REG_ADDR(AWG_ChannelNum, WG_DRV_CTRL_REG0_OFFSET),
-        wf.WG_DRV_CTRL_REG0.value);
+    nnc6521_write_wave_reg(chip_id,WG_REG_ADDR(AWG_ChannelNum, WG_DRV_CTRL_REG0_OFFSET),wf.WG_DRV_CTRL_REG0.value);
 }
 
 /* ============================================================================
