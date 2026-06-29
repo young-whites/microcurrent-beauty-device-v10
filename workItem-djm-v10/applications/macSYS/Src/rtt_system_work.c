@@ -6,9 +6,11 @@
  * Change Logs:
  * Date           Author      Notes
  * 2024-11-19     teati       the first version
+ * 2026-06-29     auto-gen    Added NTC sensor update and PID control tick
  */
 #include <rtt_system_work.h>
-
+#include "ntc_sensor.h"
+#include "temp_pid.h"
 
 
 
@@ -23,8 +25,11 @@ static void Timing_1ms(void)
 
 static void Timing_10ms(void)
 {
+    /* Update NTC temperature sensor readings (ADC + filter) */
+    ntc_sensor_update();
 
-
+    /* Temperature PID control tick (internal 100ms period divider) */
+    temp_pid_tick();
 }
 
 
@@ -96,10 +101,3 @@ int sysTimer_Init(void)
     return RT_EOK;
 }
 INIT_APP_EXPORT(sysTimer_Init);
-
-
-
-
-
-
-

@@ -10,6 +10,8 @@
  */
 
 #include "protocol.h"
+#include "ntc_sensor.h"
+#include "temp_pid.h"
 #include <string.h>
 
 /* ============================================================================
@@ -446,12 +448,11 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
     /* Save temperature for the target handle */
     g_dev_state.handle[hi].temperature = temperature;
 
-    /* TODO: Control hardware heating element
-     * if (temperature == 0) { disable_heating(); }
-     * else { set_heating_target(temperature); }
-     */
+    /* Update PID controller target temperature */
+    temp_pid_set_target(hi, (float)temperature);
 
-    rt_kprintf("[PROTO] Temp set: handle %c = %u C\n", 'A' + hi, temperature);
+    rt_kprintf("[PROTO] Temp set: handle %c = %u C, PID %s\n",
+               'A' + hi, temperature, temperature > 0 ? "enabled" : "disabled");
 
     /* Send ACK */
     uint8_t ack_params[2] = { temperature, handle_id };

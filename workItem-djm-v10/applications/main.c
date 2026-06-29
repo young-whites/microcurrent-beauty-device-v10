@@ -6,11 +6,14 @@
  * Change Logs:
  * Date           Author       Notes
  * 2026-06-08     RT-Thread    first version
+ * 2026-06-29     auto-gen     Added NTC sensor and PID controller init
  */
 
 #include <rtthread.h>
 
 #include "bsp_sys.h"
+#include "ntc_sensor.h"
+#include "temp_pid.h"
 
 #define DBG_TAG "main"
 #define DBG_LVL DBG_LOG
@@ -46,6 +49,12 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
+  /* Initialize NTC temperature sensor module */
+  ntc_sensor_init();
+
+  /* Initialize temperature PID controller */
+  temp_pid_init();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -58,4 +67,3 @@ int main(void)
   }
   /* USER CODE END 3 */
 }
-
