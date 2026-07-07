@@ -355,12 +355,12 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
         break;
     case 5: /* Soft Sculpt: Customized SPI sine 128, 40Hz */
         nnc6521_customized_waveform(chip_id, channel, 128, normalized_sine_waveform_128,
-                                    current_ua, 25000, 25000, 0, 0, 1);
+                                    current_ua, 25000, 25000, 0, 0, 0);
         break;
     case 6: /* Circulation Sculpt: Custom SPI, pre-computed AM, 10Hz */
         set_pclk_divider(chip_id, PCLK_DIV_8);
         nnc6521_customized_waveform(chip_id, channel, 64, circulation_sculpt_am_64,
-                                    current_ua, 12500, 12500, 0, 0, 1);
+                                    current_ua, 12500, 12500, 0, 0, 0);
         set_pclk_divider(chip_id, PCLK_DIV_1);
         break;
     case 7: /* Smooth & Firm: Preloaded TRIANGLE, 100Hz, 400us */
@@ -370,13 +370,13 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
     case 8: /* Lymphatic Drainage: 5Hz, needs PCLK/16 */
         set_pclk_divider(chip_id, PCLK_DIV_16);
         nnc6521_customized_waveform(chip_id, channel, 64, normalized_sine_waveform_64,
-                                    current_ua, 12500, 12500, 56, 0, 1);
+                                    current_ua, 12500, 12500, 56, 0, 0);
         set_pclk_divider(chip_id, PCLK_DIV_1);
         break;
     case 9: /* Soothing Ending: 10Hz, needs PCLK/8 */
         set_pclk_divider(chip_id, PCLK_DIV_8);
         nnc6521_customized_waveform(chip_id, channel, 64, normalized_sine_waveform_64,
-                                    current_ua, 12500, 12500, 0, 0, 1);
+                                    current_ua, 12500, 12500, 0, 0, 0);
         set_pclk_divider(chip_id, PCLK_DIV_1);
         break;
     }
