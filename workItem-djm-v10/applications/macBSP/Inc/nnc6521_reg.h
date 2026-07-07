@@ -522,11 +522,11 @@ typedef union {
 } WG_DrvSilentClkReg_t;
 
 typedef union {
-    uint16_t value;
+    uint32_t value;
 } WG_DrvHalfWaveClkPntReg_t;
 
 typedef union {
-    uint16_t value;
+    uint32_t value;
 } WG_DrvNegHalfWaveClkPntReg_t;
 
 typedef union {

@@ -59,6 +59,8 @@ extern float normalized_triangle_waveform_128_1[64];
 extern float normalized_triangle_waveform_128_2[64];
 extern float normalized_pulse_waveform_128[128];
 extern float normalized_user_waveform_128[128];
+extern float burst_pulse_64[64];
+extern float deep_sculpt_pulse_128[128];
 
 /* ============================================================================
  *  GPIO Initialization
@@ -123,8 +125,8 @@ void nnc6521_preloaded_waveform(uint8_t chip_id,
                                 uint8_t u8_Waveform,
                                 uint8_t u8_PointNum,
                                 uint8_t u8_CI,
-                                uint16_t u32_Positive_Interval,
-                                uint16_t u32_Negative_Interval,
+                                uint32_t u32_Positive_Interval,
+                                uint32_t u32_Negative_Interval,
                                 uint32_t u32_Silent_Time,
                                 uint16_t u16_Rest_Time);
 
@@ -136,8 +138,8 @@ void nnc6521_customized_waveform(uint8_t chip_id,
                                  uint8_t u8_PointNum,
                                  float *f_Normalized_array,
                                  uint32_t u32_Max_current,
-                                 uint16_t u32_Positive_Interval,
-                                 uint16_t u32_Negative_Interval,
+                                 uint32_t u32_Positive_Interval,
+                                 uint32_t u32_Negative_Interval,
                                  uint32_t u32_Silent_Time,
                                  uint16_t u16_Rest_Time,
                                  uint8_t u8_Asymmetric_Symmetric);

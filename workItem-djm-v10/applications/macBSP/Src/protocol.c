@@ -246,69 +246,148 @@ static uint16_t map_percent_to_current(uint8_t waveform_id, uint8_t percent)
 }
 
 /**
- * @brief  Select the appropriate preloaded waveform type based on waveform ID.
+ * @brief  Waveform name string table (indexed by waveform_id 1~9).
  */
-static uint8_t select_waveform_type(uint8_t waveform_id)
+static const char *waveform_names[] = {
+    "",                /* index 0: placeholder */
+    "Power Smooth",    /* 1 */
+    "Burst Train",     /* 2 */
+    "Gentle Smooth",   /* 3 */
+    "Deep Sculpt",     /* 4 */
+    "Soft Sculpt",     /* 5 */
+    "Circulation Sculpt", /* 6 */
+    "Smooth & Firm",   /* 7 */
+    "Lymphatic Drainage", /* 8 */
+    "Soothing Ending"  /* 9 */
+};
+
+static const char *waveform_types[] = {
+    "",                /* index 0: placeholder */
+    "Preloaded Pulse",  /* 1 */
+    "Customized Burst", /* 2 */
+    "Preloaded Pulse",  /* 3 */
+    "Customized Carrier", /* 4 */
+    "Customized Sine",  /* 5 */
+    "AM Sine",          /* 6 */
+    "Preloaded Triangle", /* 7 */
+    "Customized Sine",  /* 8 */
+    "Preloaded Sine"    /* 9 */
+};
+
+static const uint16_t waveform_freq_hz[] = {
+    0,    /* index 0: placeholder */
+    50,   /* 1: Power Smooth */
+    50,   /* 2: Burst Train */
+    35,   /* 3: Gentle Smooth */
+    50,   /* 4: Deep Sculpt */
+    40,   /* 5: Soft Sculpt */
+    10,   /* 6: Circulation Sculpt */
+    100,  /* 7: Smooth & Firm */
+    5,    /* 8: Lymphatic Drainage */
+    10    /* 9: Soothing Ending */
+};
+
+/**
+ * @brief  Print waveform info in the standard format.
+ * @param  waveform_id  Waveform ID (1~9).
+ * @param  current_ma   Actual current in mA.
+ * @param  percent      Current percentage.
+ */
+static void waveform_print_info(uint8_t waveform_id, uint16_t current_ma, uint8_t percent)
 {
-    switch (waveform_id) {
-        case WAVEFORM_POWER_SMOOTH:
-        case WAVEFORM_BURST_TRAIN:
-        case WAVEFORM_GENTLE_SMOOTH:
-            return WAVEFORM_SINE;       /* Symmetric bipolar square approximated by sine */
-        case WAVEFORM_DEEP_SCULPT:
-        case WAVEFORM_CIRCUL_SCULPT:
-            return WAVEFORM_SINE;       /* High-freq carrier modulated */
-        case WAVEFORM_SOFT_SCULPT:
-            return WAVEFORM_SINE;       /* 2~4kHz sine */
-        case WAVEFORM_SMOOTH_FIRM:
-            return WAVEFORM_TRIANGLE;   /* Balanced triangle */
-        case WAVEFORM_LYMPH_DRAIN:
-        case WAVEFORM_SOOTHING_END:
-            return WAVEFORM_SINE;       /* Low-freq sine */
-        default:
-            return WAVEFORM_SINE;
-    }
+    if (waveform_id < 1 || waveform_id > 9) return;
+
+    rt_kprintf("========================================\n");
+    rt_kprintf("Waveform #%u: %s\n", waveform_id, waveform_names[waveform_id]);
+    rt_kprintf("  Current: %u mA (%u%%)\n", current_ma, percent);
+    rt_kprintf("  Frequency: %u Hz\n", waveform_freq_hz[waveform_id]);
+    rt_kprintf("  Type: %s\n", waveform_types[waveform_id]);
+    rt_kprintf("========================================\n");
 }
 
 /**
- * @brief  Select appropriate waveform point count for the waveform ID.
+ * @brief  Apply waveform to NNC6521 based on waveform ID and current percentage.
+ *         Follows the NNC6521 waveform design specification exactly.
+ * @param  chip_id      NNC6521_CHIP_1 or NNC6521_CHIP_2.
+ * @param  channel      Waveform generator channel (WAVEFORM_GEN_CH0/CH1).
+ * @param  waveform_id  Waveform ID (1~9).
+ * @param  percent      Current percentage (0~100).
  */
-static uint8_t select_point_count(uint8_t waveform_id)
+
+/**
+ * @brief  Set PCLK divider for a chip. Call before waveform config for low-freq waveforms.
+ */
+static void set_pclk_divider(uint8_t chip_id, uint8_t divider)
 {
-    if (waveform_id >= WAVEFORM_DEEP_SCULPT && waveform_id <= WAVEFORM_CIRCUL_SCULPT) {
-        return 128;  /* High-freq waveforms use more points */
+    nnc6521_write_reg(chip_id, CLK_CTRL_REG_ADDR, divider);
+}
+
+void waveform_apply(uint8_t chip_id, uint8_t channel,
+                    uint8_t waveform_id, uint8_t percent)
+{
+    if (waveform_id < 1 || waveform_id > 9) return;
+
+    if (percent == 0) {
+        nnc6521_awg_enable_disable(chip_id, channel, 0);
+        return;
     }
-    return 64;       /* Standard waveforms */
+
+    uint16_t current_ma = map_percent_to_current(waveform_id, percent);
+    uint8_t ci = (uint8_t)((float)current_ma * 255.0f / waveform_current_max[waveform_id]);
+
+    switch (waveform_id) {
+    case 1: /* Power Smooth: Preloaded PULSE, 50Hz, 300us */
+        nnc6521_preloaded_waveform(chip_id, channel, WAVEFORM_PULSE, 64, ci,
+                                   20000, 20000, 600, 0);
+        break;
+    case 2: /* Burst Train: Customized SPI burst_pulse_64, 50Hz, 300us */
+        nnc6521_customized_waveform(chip_id, channel, 64, burst_pulse_64,
+                                    current_ma, 20000, 20000, 600, 0, 0);
+        break;
+    case 3: /* Gentle Smooth: Preloaded PULSE, 35Hz, 300us */
+        nnc6521_preloaded_waveform(chip_id, channel, WAVEFORM_PULSE, 64, ci,
+                                   28571, 28571, 600, 0);
+        break;
+    case 4: /* Deep Sculpt: Customized SPI, 50Hz, 4kHz carrier */
+        nnc6521_customized_waveform(chip_id, channel, 128, deep_sculpt_pulse_128,
+                                    current_ma, 20000, 20000, 250, 0, 0);
+        break;
+    case 5: /* Soft Sculpt: Customized SPI sine 128, 40Hz */
+        nnc6521_customized_waveform(chip_id, channel, 128, normalized_sine_waveform_128,
+                                    current_ma, 25000, 25000, 0, 0, 1);
+        break;
+    case 6: /* Circulation Sculpt: AM, sine 64, 10Hz envelope, 4kHz carrier */
+        nnc6521_amplitude_modulation(chip_id, channel, 64, normalized_sine_waveform_64,
+                                     current_ma, 250, 0, 3125);
+        break;
+    case 7: /* Smooth & Firm: Preloaded TRIANGLE, 100Hz, 400us */
+        nnc6521_preloaded_waveform(chip_id, channel, WAVEFORM_TRIANGLE, 64, ci,
+                                   10000, 10000, 800, 0);
+        break;
+    case 8: /* Lymphatic Drainage: 5Hz, needs PCLK/16 */
+        set_pclk_divider(chip_id, PCLK_DIV_16);
+        nnc6521_customized_waveform(chip_id, channel, 64, normalized_sine_waveform_64,
+                                    current_ma, 12500, 12500, 56, 0, 1);
+        set_pclk_divider(chip_id, PCLK_DIV_1);
+        break;
+    case 9: /* Soothing Ending: 10Hz, needs PCLK/8 */
+        set_pclk_divider(chip_id, PCLK_DIV_8);
+        nnc6521_customized_waveform(chip_id, channel, 64, normalized_sine_waveform_64,
+                                    current_ma, 12500, 12500, 0, 0, 1);
+        set_pclk_divider(chip_id, PCLK_DIV_1);
+        break;
+    }
 }
 
 void protocol_update_current_output(uint8_t handle_idx)
 {
     if (handle_idx > 2) return;
 
-    uint8_t percent = g_dev_state.handle[handle_idx].current_percent;
-    uint16_t current_ma = map_percent_to_current(g_dev_state.waveform_id, percent);
+    uint8_t chip_id = (handle_idx == 0) ? NNC6521_CHIP_1 : NNC6521_CHIP_2;
+    uint8_t channel = WAVEFORM_GEN_CH0;
 
-    rt_kprintf("[PROTO] Handle %c current: %u%% -> %u mA\n",
-               'A' + handle_idx, percent, current_ma);
-
-    /* TODO: Call NNC6521 API with mapped current value
-     * The actual implementation depends on chip-to-handle mapping.
-     * Example for Chip1, CH0:
-     *
-     * if (current_ma == 0) {
-     *     nnc6521_awg_enable_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0, 0);
-     * } else {
-     *     nnc6521_customized_waveform(
-     *         NNC6521_CHIP_1,
-     *         WAVEFORM_GEN_CH0,
-     *         select_point_count(g_dev_state.waveform_id),
-     *         normalized_sine_waveform_64,
-     *         current_ma * 1000,  // Convert mA to uA
-     *         100, 100, 1000, 50,
-     *         1  // symmetric
-     *     );
-     * }
-     */
+    waveform_apply(chip_id, channel, g_dev_state.waveform_id,
+                   g_dev_state.handle[handle_idx].current_percent);
 }
 
 void protocol_start_waveform(void)
@@ -319,15 +398,13 @@ void protocol_start_waveform(void)
     uint8_t hi = protocol_handle_index(g_dev_state.current_handle);
     if (hi < 0) return;
 
-    rt_kprintf("[PROTO] Start treatment on handle %c, waveform %u\n",
-               'A' + hi, g_dev_state.waveform_id);
-
     /* Update current output with saved percentage */
     protocol_update_current_output(hi);
 
-    /* TODO: Enable NNC6521 waveform generator
-     * nnc6521_awg_enable_disable(chip_id, channel, 1);
-     */
+    /* Print waveform info */
+    uint8_t percent = g_dev_state.handle[hi].current_percent;
+    uint16_t current_ma = map_percent_to_current(g_dev_state.waveform_id, percent);
+    waveform_print_info(g_dev_state.waveform_id, current_ma, percent);
 }
 
 void protocol_stop_waveform(void)
@@ -599,7 +676,14 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
     /* Save new waveform selection */
     g_dev_state.waveform_id = waveform_id;
 
-    rt_kprintf("[PROTO] Waveform selected: %u\n", waveform_id);
+    /* Print waveform info on selection change */
+    uint8_t percent = 0;
+    uint8_t hi = protocol_handle_index(g_dev_state.current_handle);
+    if (hi >= 0) {
+        percent = g_dev_state.handle[hi].current_percent;
+    }
+    uint16_t current_ma = map_percent_to_current(waveform_id, percent);
+    waveform_print_info(waveform_id, current_ma, percent);
 
     /* TODO: Configure NNC6521 for new waveform type
      * The actual waveform parameters will be applied when treatment starts.
