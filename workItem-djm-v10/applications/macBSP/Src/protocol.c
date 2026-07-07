@@ -268,7 +268,7 @@ static const char *waveform_types[] = {
     "Preloaded Pulse",  /* 3 */
     "Customized Carrier", /* 4 */
     "Customized Sine",  /* 5 */
-    "AM Sine",          /* 6 */
+    "Custom SPI AM",    /* 6 */
     "Preloaded Triangle", /* 7 */
     "Customized Sine",  /* 8 */
     "Preloaded Sine"    /* 9 */
@@ -357,9 +357,11 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
         nnc6521_customized_waveform(chip_id, channel, 128, normalized_sine_waveform_128,
                                     current_ua, 25000, 25000, 0, 0, 1);
         break;
-    case 6: /* Circulation Sculpt: AM, sine 64, 10Hz envelope, 4kHz carrier */
-        nnc6521_amplitude_modulation(chip_id, channel, 64, normalized_sine_waveform_64,
-                                     current_ua, 250, 0, 3125);
+    case 6: /* Circulation Sculpt: Custom SPI, pre-computed AM, 10Hz */
+        set_pclk_divider(chip_id, PCLK_DIV_8);
+        nnc6521_customized_waveform(chip_id, channel, 64, circulation_sculpt_am_64,
+                                    current_ua, 12500, 12500, 0, 0, 1);
+        set_pclk_divider(chip_id, PCLK_DIV_1);
         break;
     case 7: /* Smooth & Firm: Preloaded TRIANGLE, 100Hz, 400us */
         nnc6521_preloaded_waveform(chip_id, channel, WAVEFORM_TRIANGLE, 64, ci,

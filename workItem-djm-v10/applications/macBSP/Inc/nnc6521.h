@@ -61,6 +61,7 @@ extern float normalized_pulse_waveform_128[128];
 extern float normalized_user_waveform_128[128];
 extern float burst_pulse_64[64];
 extern float deep_sculpt_pulse_128[128];
+extern float circulation_sculpt_am_64[64];
 
 /* ============================================================================
  *  GPIO Initialization
