@@ -1,7 +1,7 @@
 # NTC Temperature Sensor PID Control Algorithm Design Document
 
-> **Version**: V1.0  
-> **Date**: 2026-06-29  
+> **Version**: V1.1  
+> **Date**: 2026-07-08  
 > **Platform**: STM32F103RCT6 / RT-Thread v5.1.0 / STM32 HAL  
 > **Project**: DJM-V10 Microcurrent Beauty Device
 
@@ -12,6 +12,7 @@
 | Version | Date | Author | Description |
 |---------|------|--------|-------------|
 | V1.0 | 2026-06-29 | — | Initial version: NTC temperature acquisition, PID algorithm, software PWM heating control |
+| V1.1 | 2026-07-08 | — | Added NTC lookup table + linear interpolation algorithm based on manufacturer B-value table (-50~125°C, 176 points), dual-mode switch via NTC_USE_LOOKUP_TABLE macro |
 
 ---
 

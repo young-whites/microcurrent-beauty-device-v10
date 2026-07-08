@@ -132,8 +132,122 @@ float ntc_adc_to_resistance(uint16_t adc_value)
     return r_ntc;
 }
 
+/* ============================================================================
+ *  NTC Lookup Table (Rnor / nominal resistance, kOhms)
+ *  Index 0 = -50 deg.C, index 175 = 125 deg.C, step = 1 deg.C
+ *  Source: Weiheng Electronics datasheet for R25=100k, B25/50=3950
+ *  Stored in Flash (.rodata) to save RAM.
+ * ===========================================================================*/
+#if NTC_USE_LOOKUP_TABLE
+#define NTC_LUT_TEMP_MIN    (-50)       /* Lowest temperature in table (deg.C) */
+#define NTC_LUT_TEMP_MAX    125         /* Highest temperature in table (deg.C) */
+#define NTC_LUT_SIZE        (NTC_LUT_TEMP_MAX - NTC_LUT_TEMP_MIN + 1)  /* 176 */
+
+static const float s_ntc_lut_r_kohm[NTC_LUT_SIZE] = {
+    /* -50 to -31 (index 0~19) */
+    6878.030f, 6410.610f, 5977.290f, 5575.470f, 5202.730f,
+    4856.840f, 4535.760f, 4237.610f, 3960.650f, 3703.290f,
+    3464.050f, 3241.580f, 3034.620f, 2842.020f, 2662.720f,
+    2495.740f, 2340.170f, 2195.180f, 2060.000f, 1933.920f,
+    /* -30 to -11 (index 20~39) */
+    1816.280f, 1706.470f, 1603.940f, 1508.160f, 1418.660f,
+    1335.000f, 1256.750f, 1183.550f, 1115.050f, 1050.910f,
+     990.841f,  934.558f,  881.805f,  832.341f,  785.945f,
+     742.410f,  701.544f,  663.170f,  627.123f,  593.249f,
+    /* -10 to 9 (index 40~59) */
+     561.406f,  531.461f,  503.291f,  476.781f,  451.824f,
+     428.322f,  406.182f,  385.317f,  365.647f,  347.098f,
+     329.600f,  313.086f,  297.498f,  282.777f,  268.871f,
+     255.731f,  243.310f,  231.566f,  220.456f,  209.945f,
+    /* 10 to 29 (index 60~79) */
+     200.000f,  190.577f,  181.655f,  173.204f,  165.194f,
+     157.601f,  150.401f,  143.572f,  137.092f,  130.941f,
+     125.102f,  119.556f,  114.288f,  109.282f,  104.524f,
+     100.000f,   95.697f,   91.603f,   87.708f,   84.000f,
+    /* 30 to 49 (index 80~99) */
+      80.470f,   77.108f,   73.905f,   70.853f,   67.944f,
+      65.171f,   62.526f,   60.002f,   57.595f,   55.297f,
+      53.104f,   51.010f,   49.009f,   47.098f,   45.272f,
+      43.526f,   41.857f,   40.261f,   38.735f,   37.274f,
+    /* 50 to 69 (index 100~119) */
+      35.880f,   34.539f,   33.258f,   32.031f,   30.856f,
+      29.730f,   28.652f,   27.618f,   26.626f,   25.676f,
+      24.764f,   23.890f,   23.051f,   22.245f,   21.472f,
+      20.730f,   20.017f,   19.332f,   18.674f,   18.042f,
+    /* 70 to 89 (index 120~139) */
+      17.434f,   16.850f,   16.289f,   15.749f,   15.229f,
+      14.730f,   14.249f,   13.786f,   13.340f,   12.911f,
+      12.498f,   12.101f,   11.717f,   11.348f,   10.992f,
+      10.649f,   10.319f,   10.000f,    9.693f,    9.396f,
+    /* 90 to 109 (index 140~159) */
+       9.110f,    8.834f,    8.568f,    8.311f,    8.063f,
+       7.824f,    7.592f,    7.369f,    7.153f,    6.945f,
+       6.744f,    6.549f,    6.361f,    6.179f,    6.003f,
+       5.833f,    5.669f,    5.510f,    5.356f,    5.207f,
+    /* 110 to 125 (index 160~175) */
+       5.063f,    4.923f,    4.788f,    4.658f,    4.531f,
+       4.409f,    4.290f,    4.175f,    4.064f,    3.956f,
+       3.851f,    3.750f,    3.651f,    3.556f,    3.464f,
+       3.374f
+};
+
+/* ============================================================================
+ *  Lookup Table Conversion Functions
+ * ===========================================================================*/
+
+float ntc_resistance_to_temperature_lut(float resistance)
+{
+    /* Convert Ohms to kOhms for table lookup */
+    float r_kohm = resistance / 1000.0f;
+
+    /* Clamp to table range */
+    if (r_kohm >= s_ntc_lut_r_kohm[0]) {
+        return (float)NTC_LUT_TEMP_MIN;  /* Resistance too high, below -50C */
+    }
+    if (r_kohm <= s_ntc_lut_r_kohm[NTC_LUT_SIZE - 1]) {
+        return (float)NTC_LUT_TEMP_MAX;  /* Resistance too low, above 125C */
+    }
+
+    /*
+     * Binary search: table is sorted descending (high R = low temp).
+     * Find index i such that lut[i] >= r_kohm > lut[i+1].
+     * Then temperature is between (TEMP_MIN + i) and (TEMP_MIN + i + 1).
+     */
+    int lo = 0;
+    int hi = NTC_LUT_SIZE - 1;
+
+    while (hi - lo > 1) {
+        int mid = (lo + hi) / 2;
+        if (s_ntc_lut_r_kohm[mid] >= r_kohm) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+
+    /* lo and hi are adjacent; lut[lo] >= r_kohm > lut[hi] */
+    float r_lo = s_ntc_lut_r_kohm[lo];
+    float r_hi = s_ntc_lut_r_kohm[hi];
+
+    /* Linear interpolation factor (0.0 at lo, 1.0 at hi) */
+    float frac = (r_lo - r_kohm) / (r_lo - r_hi);
+
+    float temp = (float)(NTC_LUT_TEMP_MIN + lo) + frac;
+    return temp;
+}
+
+float ntc_adc_to_temperature_lut(uint16_t adc_value)
+{
+    float resistance = ntc_adc_to_resistance(adc_value);
+    return ntc_resistance_to_temperature_lut(resistance);
+}
+#endif /* NTC_USE_LOOKUP_TABLE */
+
 float ntc_adc_to_temperature(uint16_t adc_value)
 {
+#if NTC_USE_LOOKUP_TABLE
+    return ntc_adc_to_temperature_lut(adc_value);
+#else
     /*
      * B-parameter equation (simplified Steinhart-Hart):
      *
@@ -170,6 +284,7 @@ float ntc_adc_to_temperature(uint16_t adc_value)
     if (temp_c > 350.0f) temp_c = 350.0f;
 
     return temp_c;
+#endif
 }
 
 /* ============================================================================

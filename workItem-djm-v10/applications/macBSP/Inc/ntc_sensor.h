@@ -29,6 +29,12 @@ extern "C" {
 #define NTC_ADC_RESOLUTION  4096        /* 12-bit ADC */
 
 /* ============================================================================
+ *  Lookup Table Mode Selection
+ * ===========================================================================*/
+#define NTC_USE_LOOKUP_TABLE    1       /* 1 = use lookup table + interpolation,
+                                           0 = use B-parameter equation */
+
+/* ============================================================================
  *  Filter Configuration
  * ===========================================================================*/
 #define NTC_FILTER_SIZE     8           /* Sliding average window size (power of 2) */
@@ -72,11 +78,29 @@ int ntc_sensor_init(void);
 uint16_t ntc_sensor_read_adc(uint8_t channel);
 
 /**
- * @brief  Convert ADC value to temperature using B-parameter equation.
+ * @brief  Convert ADC value to temperature.
+ *         Uses lookup table + linear interpolation when NTC_USE_LOOKUP_TABLE=1,
+ *         otherwise uses B-parameter equation.
  * @param  adc_value  12-bit ADC value (0~4095).
  * @return Temperature in Celsius.
  */
 float ntc_adc_to_temperature(uint16_t adc_value);
+
+#if NTC_USE_LOOKUP_TABLE
+/**
+ * @brief  Convert ADC value to temperature using lookup table + linear interpolation.
+ * @param  adc_value  12-bit ADC value (0~4095).
+ * @return Temperature in Celsius (-50.0 ~ 125.0).
+ */
+float ntc_adc_to_temperature_lut(uint16_t adc_value);
+
+/**
+ * @brief  Convert NTC resistance to temperature using lookup table.
+ * @param  resistance  NTC resistance in Ohms.
+ * @return Temperature in Celsius (-50.0 ~ 125.0).
+ */
+float ntc_resistance_to_temperature_lut(float resistance);
+#endif
 
 /**
  * @brief  Convert ADC value to NTC resistance.
