@@ -14,6 +14,8 @@
 #include "bsp_sys.h"
 #include "ntc_sensor.h"
 #include "temp_pid.h"
+#include "nnc6521.h"
+#include "nnc6521_waveform_config.h"
 
 #define DBG_TAG "main"
 #define DBG_LVL DBG_LOG
@@ -54,6 +56,27 @@ int main(void)
 
   /* Initialize temperature PID controller */
   temp_pid_init();
+
+  /* Initialize NNC6521 waveform generator */
+  nnc6521_gpio_init();
+  nnc6521_init(NNC6521_CHIP_1);
+  nnc6521_init(NNC6521_CHIP_2);
+  nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0);
+  nnc6521_analog_enable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);
+
+  /* Apply default waveform 1 (Power Smooth) at 50% current */
+  waveform_apply(NNC6521_CHIP_1, WAVEFORM_GEN_CH0, 1, WAVEFORM_DEFAULT_PCT);
+
+  /* Print waveform info */
+  {
+      const waveform_config_t *wfc = waveform_get_config(1);
+      if (wfc != NULL) {
+          rt_kprintf("Waveform #%d: %s, %d Hz, %lu-%lu mA\n",
+                     wfc->id, wfc->name, wfc->frequency,
+                     wfc->min_current, wfc->max_current);
+      }
+      rt_kprintf("NNC6521 initialized, default waveform applied.\n");
+  }
 
   /* USER CODE END 2 */
 

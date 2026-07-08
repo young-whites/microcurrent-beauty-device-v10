@@ -179,6 +179,15 @@ void nnc6521_scd_init(uint8_t chip_id,
                       uint8_t u8_CH1_Int_Num);
 
 /**
+ * @brief  Enable analog output stage (VDAC + driver amplifier) for a channel.
+ *         Must be called before waveform output to enable the analog frontend.
+ *         Without this, only a digital square wave appears at the output pin.
+ * @param  chip_id  NNC6521_CHIP_1 or NNC6521_CHIP_2
+ * @param  channel  WAVEFORM_GEN_CH0 or WAVEFORM_GEN_CH1
+ */
+void nnc6521_analog_enable(uint8_t chip_id, uint8_t channel);
+
+/**
  * @brief  Enable or disable waveform generator on a channel.
  */
 void nnc6521_awg_enable_disable(uint8_t chip_id,
