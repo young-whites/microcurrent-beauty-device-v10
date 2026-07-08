@@ -31,7 +31,10 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+extern ADC_HandleTypeDef hadc1;
 
+extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -64,12 +67,24 @@ void MX_ADC1_Init(void);
 #define LARGE_HAND_NTC_ADC_GPIO_Port GPIOC
 #define SMALL_HAND_NTC_ADC_Pin GPIO_PIN_1
 #define SMALL_HAND_NTC_ADC_GPIO_Port GPIOC
+#define SYSTEM_POWER_CTRL_Pin GPIO_PIN_4
+#define SYSTEM_POWER_CTRL_GPIO_Port GPIOA
+#define POWER_ON_OFF_Pin GPIO_PIN_5
+#define POWER_ON_OFF_GPIO_Port GPIOA
+#define START_LED_CTRL_Pin GPIO_PIN_6
+#define START_LED_CTRL_GPIO_Port GPIOA
 #define BEEP_Pin GPIO_PIN_7
 #define BEEP_GPIO_Port GPIOA
+#define LGS6302EP_1_EN_Pin GPIO_PIN_0
+#define LGS6302EP_1_EN_GPIO_Port GPIOB
+#define LGS6302EP_2_EN_Pin GPIO_PIN_1
+#define LGS6302EP_2_EN_GPIO_Port GPIOB
+#define VACUUM_PUMP_CTRL_Pin GPIO_PIN_10
+#define VACUUM_PUMP_CTRL_GPIO_Port GPIOB
+#define SMALL_HAND_TEMP_CTRL_Pin GPIO_PIN_10
+#define SMALL_HAND_TEMP_CTRL_GPIO_Port GPIOC
 #define LARGE_HAND_TEMP_CTRL_Pin GPIO_PIN_11
 #define LARGE_HAND_TEMP_CTRL_GPIO_Port GPIOC
-#define SMALL_HAND_TEMP_CTRL_Pin GPIO_PIN_12
-#define SMALL_HAND_TEMP_CTRL_GPIO_Port GPIOC
 
 /* USER CODE BEGIN Private defines */
 

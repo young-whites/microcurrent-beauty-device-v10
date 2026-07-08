@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "bsp_sys.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -291,25 +291,59 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(SYSTEM_POWER_CTRL_GPIO_Port, SYSTEM_POWER_CTRL_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, LARGE_HAND_TEMP_CTRL_Pin|SMALL_HAND_TEMP_CTRL_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, START_LED_CTRL_Pin|BEEP_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : BEEP_Pin */
-  GPIO_InitStruct.Pin = BEEP_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, LGS6302EP_1_EN_Pin|LGS6302EP_2_EN_Pin|VACUUM_PUMP_CTRL_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, SMALL_HAND_TEMP_CTRL_Pin|LARGE_HAND_TEMP_CTRL_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : SYSTEM_POWER_CTRL_Pin */
+  GPIO_InitStruct.Pin = SYSTEM_POWER_CTRL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SYSTEM_POWER_CTRL_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : POWER_ON_OFF_Pin */
+  GPIO_InitStruct.Pin = POWER_ON_OFF_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(POWER_ON_OFF_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : START_LED_CTRL_Pin BEEP_Pin */
+  GPIO_InitStruct.Pin = START_LED_CTRL_Pin|BEEP_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(BEEP_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LARGE_HAND_TEMP_CTRL_Pin SMALL_HAND_TEMP_CTRL_Pin */
-  GPIO_InitStruct.Pin = LARGE_HAND_TEMP_CTRL_Pin|SMALL_HAND_TEMP_CTRL_Pin;
+  /*Configure GPIO pins : LGS6302EP_1_EN_Pin LGS6302EP_2_EN_Pin */
+  GPIO_InitStruct.Pin = LGS6302EP_1_EN_Pin|LGS6302EP_2_EN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : VACUUM_PUMP_CTRL_Pin */
+  GPIO_InitStruct.Pin = VACUUM_PUMP_CTRL_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(VACUUM_PUMP_CTRL_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : SMALL_HAND_TEMP_CTRL_Pin LARGE_HAND_TEMP_CTRL_Pin */
+  GPIO_InitStruct.Pin = SMALL_HAND_TEMP_CTRL_Pin|LARGE_HAND_TEMP_CTRL_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */

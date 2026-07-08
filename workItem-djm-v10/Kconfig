@@ -15,6 +15,11 @@ config PKGS_DIR
     option env="PKGS_ROOT"
     default "packages"
 
+config PLATFORM_DIR
+    string
+    option env="PLATFORM_DIR"
+    default "I:/Github-young-whites/microcurrent-beauty-device-v10/workItem-djm-v10/platform"
+
 source "$RTT_DIR/Kconfig"
 source "$PKGS_DIR/Kconfig"
 source "$PKGS_DIR/packages/misc/samples/Kconfig"

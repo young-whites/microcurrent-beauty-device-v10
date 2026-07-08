@@ -10,6 +10,7 @@
  */
 
 #include "protocol.h"
+#include "nnc6521_waveform_config.h"
 #include "ntc_sensor.h"
 #include "temp_pid.h"
 #include <string.h>
@@ -314,73 +315,7 @@ static void waveform_print_info(uint8_t waveform_id, uint16_t current_ma, uint8_
  * @param  percent      Current percentage (0~100).
  */
 
-/**
- * @brief  Set PCLK divider for a chip. Call before waveform config for low-freq waveforms.
- */
-static void set_pclk_divider(uint8_t chip_id, uint8_t divider)
-{
-    nnc6521_write_reg(chip_id, CLK_CTRL_REG_ADDR, divider);
-}
-
-void waveform_apply(uint8_t chip_id, uint8_t channel,
-                    uint8_t waveform_id, uint8_t percent)
-{
-    if (waveform_id < 1 || waveform_id > 9) return;
-
-    if (percent == 0) {
-        nnc6521_awg_enable_disable(chip_id, channel, 0);
-        return;
-    }
-
-    uint16_t current_ma = map_percent_to_current(waveform_id, percent);
-    uint32_t current_ua = (uint32_t)current_ma * 1000;  /* mA → μA for NNC6521 API */
-    uint8_t ci = (uint8_t)((float)current_ma * 255.0f / waveform_current_max[waveform_id]);
-
-    switch (waveform_id) {
-    case 1: /* Power Smooth: Preloaded PULSE, 50Hz, 300us */
-        nnc6521_preloaded_waveform(chip_id, channel, WAVEFORM_PULSE, 64, ci,
-                                   20000, 20000, 600, 0);
-        break;
-    case 2: /* Burst Train: Customized SPI burst_pulse_64, 50Hz, 300us */
-        nnc6521_customized_waveform(chip_id, channel, 64, burst_pulse_64,
-                                    current_ua, 20000, 20000, 600, 0, 0);
-        break;
-    case 3: /* Gentle Smooth: Preloaded PULSE, 35Hz, 300us */
-        nnc6521_preloaded_waveform(chip_id, channel, WAVEFORM_PULSE, 64, ci,
-                                   28571, 28571, 600, 0);
-        break;
-    case 4: /* Deep Sculpt: Customized SPI, 50Hz, 4kHz carrier */
-        nnc6521_customized_waveform(chip_id, channel, 128, deep_sculpt_pulse_128,
-                                    current_ua, 20000, 20000, 250, 0, 0);
-        break;
-    case 5: /* Soft Sculpt: Customized SPI sine 128, 40Hz */
-        nnc6521_customized_waveform(chip_id, channel, 128, normalized_sine_waveform_128,
-                                    current_ua, 25000, 25000, 0, 0, 0);
-        break;
-    case 6: /* Circulation Sculpt: Custom SPI, pre-computed AM, 10Hz */
-        set_pclk_divider(chip_id, PCLK_DIV_8);
-        nnc6521_customized_waveform(chip_id, channel, 64, circulation_sculpt_am_64,
-                                    current_ua, 12500, 12500, 0, 0, 0);
-        set_pclk_divider(chip_id, PCLK_DIV_1);
-        break;
-    case 7: /* Smooth & Firm: Preloaded TRIANGLE, 100Hz, 400us */
-        nnc6521_preloaded_waveform(chip_id, channel, WAVEFORM_TRIANGLE, 64, ci,
-                                   10000, 10000, 800, 0);
-        break;
-    case 8: /* Lymphatic Drainage: 5Hz, needs PCLK/16 */
-        set_pclk_divider(chip_id, PCLK_DIV_16);
-        nnc6521_customized_waveform(chip_id, channel, 64, normalized_sine_waveform_64,
-                                    current_ua, 12500, 12500, 56, 0, 0);
-        set_pclk_divider(chip_id, PCLK_DIV_1);
-        break;
-    case 9: /* Soothing Ending: 10Hz, needs PCLK/8 */
-        set_pclk_divider(chip_id, PCLK_DIV_8);
-        nnc6521_customized_waveform(chip_id, channel, 64, normalized_sine_waveform_64,
-                                    current_ua, 12500, 12500, 0, 0, 0);
-        set_pclk_divider(chip_id, PCLK_DIV_1);
-        break;
-    }
-}
+/* waveform_apply() is now provided by nnc6521_waveform_config.c */
 
 void protocol_update_current_output(uint8_t handle_idx)
 {

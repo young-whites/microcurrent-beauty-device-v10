@@ -202,16 +202,6 @@ void protocol_start_waveform(void);
  */
 void protocol_stop_waveform(void);
 
-/**
- * @brief  Apply waveform to NNC6521 based on waveform ID and current percentage.
- * @param  chip_id      NNC6521_CHIP_1 or NNC6521_CHIP_2.
- * @param  channel      Waveform generator channel (WAVEFORM_GEN_CH0/CH1).
- * @param  waveform_id  Waveform ID (1~9).
- * @param  percent      Current percentage (0~100).
- */
-void waveform_apply(uint8_t chip_id, uint8_t channel,
-                    uint8_t waveform_id, uint8_t percent);
-
 #ifdef __cplusplus
 }
 #endif

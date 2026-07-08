@@ -17,7 +17,6 @@
 #include <board.h>
 #include <rtdevice.h>
 #include <rthw.h>
-#include <drv_spi.h>
 
 /* 标准库头文件 */
 #include "string.h"
