@@ -20,12 +20,14 @@ NNC6521 is a dual-channel micro-current stimulation chip designed for medical el
 ```
 applications/macBSP/
 ├── Inc/
-│   ├── nnc6521.h          # Main header with API declarations and data structures
-│   └── nnc6521_reg.h      # Register definitions and enumeration types
+│   ├── nnc6521.h                  # Main header with API declarations and data structures
+│   ├── nnc6521_reg.h              # Register definitions and enumeration types
+│   └── nnc6521_waveform_config.h  # 9 preset waveform configurations
 └── Src/
-    ├── nnc6521_drv.c      # Core driver implementation
-    ├── nnc6521_spi.c      # Software SPI communication implementation
-    └── nnc6521_waveform.c # Preloaded waveform data
+    ├── nnc6521_drv.c              # Core driver implementation
+    ├── nnc6521_spi.c              # Software SPI communication implementation
+    ├── nnc6521_waveform.c         # Preloaded waveform data
+    └── nnc6521_waveform_config.c  # Waveform config array & waveform_apply()
 ```
 
 ---

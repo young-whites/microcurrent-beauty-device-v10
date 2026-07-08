@@ -20,12 +20,14 @@ NNC6521 是一款双通道微电流刺激芯片，适用于美容仪等医疗电
 ```
 applications/macBSP/
 ├── Inc/
-│   ├── nnc6521.h          # 主头文件，包含 API 声明和数据结构
-│   └── nnc6521_reg.h      # 寄存器定义和枚举类型
+│   ├── nnc6521.h                  # 主头文件，包含 API 声明和数据结构
+│   ├── nnc6521_reg.h              # 寄存器定义和枚举类型
+│   └── nnc6521_waveform_config.h  # 9 种预设波形配置
 └── Src/
-    ├── nnc6521_drv.c      # 驱动核心实现
-    ├── nnc6521_spi.c      # 软件 SPI 通信实现
-    └── nnc6521_waveform.c # 预定义波形数据
+    ├── nnc6521_drv.c              # 驱动核心实现
+    ├── nnc6521_spi.c              # 软件 SPI 通信实现
+    ├── nnc6521_waveform.c         # 预定义波形数据
+    └── nnc6521_waveform_config.c  # 波形配置数组与 waveform_apply()
 ```
 
 ---
