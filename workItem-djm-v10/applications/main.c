@@ -12,6 +12,7 @@
 #include <rtthread.h>
 
 #include "bsp_sys.h"
+#include "bsp_hard.h"
 #include "ntc_sensor.h"
 #include "temp_pid.h"
 #include "nnc6521.h"
@@ -50,6 +51,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+
+  /* Note: bsp_hard.h is included via bsp_sys.h */
 
   /* Initialize NTC temperature sensor module */
   ntc_sensor_init();

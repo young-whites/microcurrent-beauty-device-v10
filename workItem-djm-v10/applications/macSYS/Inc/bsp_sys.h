@@ -31,6 +31,7 @@
 /* macAPP 头文件 */
 #include "rtt_system_work.h"
 /* macBSP 头文件 */
+#include "bsp_hard.h"
 
 /* macSYS 头文件 */
 #include "bsp_typedef.h"

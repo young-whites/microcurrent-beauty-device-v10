@@ -13,6 +13,7 @@
 #include "nnc6521_waveform_config.h"
 #include "ntc_sensor.h"
 #include "temp_pid.h"
+#include "bsp_hard.h"
 #include <string.h>
 
 /* ============================================================================
@@ -496,12 +497,8 @@ static void handle_pump_ctrl(const uint8_t *params, uint8_t param_len)
     /* Pump only applies to handle C */
     g_dev_state.handle[2].pump_speed = speed;
 
-    /* Control vacuum pump: enable pin (high=on, low=off), no PWM */
-    if (speed == 0) {
-        HAL_GPIO_WritePin(VACUUM_PUMP_CTRL_GPIO_Port, VACUUM_PUMP_CTRL_Pin, GPIO_PIN_RESET);
-    } else {
-        HAL_GPIO_WritePin(VACUUM_PUMP_CTRL_GPIO_Port, VACUUM_PUMP_CTRL_Pin, GPIO_PIN_SET);
-    }
+    /* Control vacuum pump via BSP abstraction layer */
+    bsp_pump_set(speed > 0 ? 1 : 0);
 
     rt_kprintf("[PROTO] Pump speed set: %u%%\n", speed);
 
