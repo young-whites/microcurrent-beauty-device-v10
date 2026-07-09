@@ -51,6 +51,7 @@ extern "C" {
 #define FUNC_AGING_MODE     0x07        /* Factory aging test mode */
 #define FUNC_READ_VERSION   0x08        /* Read firmware version */
 #define FUNC_WAVEFORM_SEL   0x09        /* Waveform selection (1~9) */
+#define FUNC_SHUTDOWN_REQ   0x0A        /* Shutdown request (device -> upper machine) */
 
 /* ============================================================================
  *  Handle ID Definitions

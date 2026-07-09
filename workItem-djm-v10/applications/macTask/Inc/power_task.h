@@ -22,5 +22,6 @@ typedef enum {
 
 int power_task_init(void);              // Create power management thread
 power_state_t power_get_state(void);    // Get current power state
+void power_shutdown_confirm(void);       // Called by protocol when shutdown ACK received
 
 #endif /* __POWER_TASK_H__ */

@@ -6,7 +6,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2026-07-08     Administrator       the first version
- * 2026-07-09     auto-gen     Added GPIO abstraction implementations
+ * 2026-07-09     auto-gen     Removed LED/beep/button functions (now handled by bsp_led/bsp_beep/bsp_key drivers)
  */
 #include "bsp_hard.h"
 
@@ -21,35 +21,6 @@
 void bsp_power_enable(uint8_t on)
 {
     HAL_GPIO_WritePin(SYSTEM_POWER_CTRL_GPIO_Port, SYSTEM_POWER_CTRL_Pin,
-                      on ? GPIO_PIN_SET : GPIO_PIN_RESET);
-}
-
-/**
- * @brief  Read power button state.
- * @return 1 if button is pressed (LOW), 0 if released (HIGH).
- */
-uint8_t bsp_power_button_read(void)
-{
-    return (HAL_GPIO_ReadPin(POWER_ON_OFF_GPIO_Port, POWER_ON_OFF_Pin) == GPIO_PIN_RESET) ? 1 : 0;
-}
-
-/**
- * @brief  Control system LED.
- * @param  on  1=on, 0=off.
- */
-void bsp_led_set(uint8_t on)
-{
-    HAL_GPIO_WritePin(START_LED_CTRL_GPIO_Port, START_LED_CTRL_Pin,
-                      on ? GPIO_PIN_SET : GPIO_PIN_RESET);
-}
-
-/**
- * @brief  Control buzzer.
- * @param  on  1=on, 0=off.
- */
-void bsp_beep_set(uint8_t on)
-{
-    HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin,
                       on ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 

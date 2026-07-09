@@ -14,6 +14,7 @@
 #include "ntc_sensor.h"
 #include "temp_pid.h"
 #include "bsp_hard.h"
+#include "power_task.h"
 #include <string.h>
 
 /* ============================================================================
@@ -674,6 +675,11 @@ static void protocol_dispatch(uint8_t *buf)
             case FUNC_AGING_MODE:    handle_aging_mode(&buf[6], param_len);   break;
             case FUNC_READ_VERSION:  handle_read_version();                    break;
             case FUNC_WAVEFORM_SEL:  handle_waveform_sel(&buf[6], param_len); break;
+            case FUNC_SHUTDOWN_REQ:
+                if (param_len >= 1 && buf[6] == 0x01) {
+                    power_shutdown_confirm();
+                }
+                break;
             default:
                 rt_kprintf("[PROTO] Unsupported function code: 0x%02X\n", func);
                 protocol_send_error(func, ERR_UNSUPPORTED);

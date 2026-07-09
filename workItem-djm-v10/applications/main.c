@@ -13,6 +13,7 @@
 
 #include "bsp_sys.h"
 #include "bsp_hard.h"
+#include "power_task.h"
 #include "ntc_sensor.h"
 #include "temp_pid.h"
 #include "nnc6521.h"
@@ -80,6 +81,9 @@ int main(void)
       }
       rt_kprintf("NNC6521 initialized, default waveform applied.\n");
   }
+
+  /* Initialize power management task (after key/beep/led drivers) */
+  power_task_init();
 
   /* USER CODE END 2 */
 

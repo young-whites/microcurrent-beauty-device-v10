@@ -1,14 +1,12 @@
 /*
- * Copyright (c) 2006-2021, RT-Thread Development Team
- *
- * SPDX-License-Identifier: Apache-2.0
- *
- * Change Logs:
- * Date           Author       Notes
- * 2026-07-09     auto-gen     Power management task implementation
+ * Power management task for DJM-V10
+ * Handles boot/shutdown sequences with upper machine confirmation
  */
 #include "power_task.h"
 #include "bsp_hard.h"
+#include "bsp_key.h"
+#include "bsp_led.h"
+#include "bsp_beep.h"
 #include "protocol.h"
 
 #define DBG_TAG "pwr"
@@ -21,11 +19,13 @@
 
 #define POWER_THREAD_PRIORITY       15
 #define POWER_THREAD_STACK_SIZE     512
-#define POWER_THREAD_TICK           20      /* Polling period in ms */
+#define POWER_THREAD_TICK           20
 
-#define BUTTON_DEBOUNCE_MS          1000    /* Button stable press duration */
-#define BUTTON_SHUTDOWN_MS          3000    /* Long press for shutdown */
-#define BEEP_DURATION_MS            1000    /* Boot beep duration */
+#define BEEP_DURATION_MS            1000
+#define SHUTDOWN_CONFIRM_TIMEOUT_MS 5000
+
+/* Shutdown request function code */
+#define FUNC_SHUTDOWN_REQ           0x0A
 
 /* ============================================================================
  *  Private Variables
@@ -34,75 +34,64 @@
 static power_state_t s_power_state = POWER_STATE_OFF;
 static rt_thread_t s_power_thread = RT_NULL;
 
+/* Shutdown confirmation flag (set by protocol handler when ACK received) */
+static volatile uint8_t s_shutdown_confirmed = 0;
+
 /* ============================================================================
  *  Public API
  * ===========================================================================*/
 
-/**
- * @brief  Get current power state.
- * @return Current power_state_t value.
- */
 power_state_t power_get_state(void)
 {
     return s_power_state;
+}
+
+/**
+ * @brief  Called by protocol module when shutdown confirmation received.
+ */
+void power_shutdown_confirm(void)
+{
+    s_shutdown_confirmed = 1;
 }
 
 /* ============================================================================
  *  Boot Sequence
  * ===========================================================================*/
 
-/**
- * @brief  Execute boot sequence.
- *         1. Wait for stable button press (1s)
- *         2. Turn on system LED
- *         3. Beep for 1s then stop
- *         4. Enable 12V power supply
- *         5. Enable 54V boost converters
- *         6. Transition to POWER_STATE_ON
- */
 static void power_boot_sequence(void)
 {
-    uint32_t press_start = 0;
-    uint8_t button_confirmed = 0;
+    rt_kprintf("[PWR] Waiting for power button...\n");
 
-    rt_kprintf("[PWR] Waiting for power button press...\n");
-
-    /* Wait for stable button press: LOW for 1 second */
-    while (!button_confirmed) {
-        if (bsp_power_button_read()) {
-            /* Button is pressed (LOW) */
-            if (press_start == 0) {
-                press_start = rt_tick_get();
-            } else if ((rt_tick_get() - press_start) >= rt_tick_from_millisecond(BUTTON_DEBOUNCE_MS)) {
-                button_confirmed = 1;
+    /* Wait for KEY_Evt_Press from key driver (blocking on key buffer) */
+    uint8_t key = 0;
+    while (1) {
+        key = KEY_Read();
+        if (key != 0) {
+            uint8_t event = key & 0xf0;
+            uint8_t kval  = key & 0x0f;
+            if (kval == KeyA_PRESS && event == KEY_Evt_Press) {
+                break;
             }
-        } else {
-            /* Button released, reset counter */
-            press_start = 0;
         }
         rt_thread_mdelay(POWER_THREAD_TICK);
     }
 
-    rt_kprintf("[PWR] Power button confirmed, starting boot...\n");
+    rt_kprintf("[PWR] Power button pressed, booting...\n");
 
     /* Step 1: Turn on system LED (PA6) */
-    bsp_led_set(1);
+    LED_On(LED_Name_Green);
 
-    /* Step 2: Beep for 1s (PA7) */
-    bsp_beep_set(1);
+    /* Step 2: Beep for 1s */
+    BEEP_On();
     rt_thread_mdelay(BEEP_DURATION_MS);
-    bsp_beep_set(0);
+    BEEP_Off();
 
     /* Step 3: Enable 12V system power (PA4) */
     bsp_power_enable(1);
     rt_kprintf("[PWR] 12V power enabled\n");
 
-    /* Step 4: Enable 54V boost converters (PB0 + PB1) */
-    bsp_boost_1_enable(1);
-    bsp_boost_2_enable(1);
-    rt_kprintf("[PWR] 54V boost enabled\n");
+    /* Note: 54V boost is NOT enabled at boot - only when treatment output is needed */
 
-    /* Transition to ON state */
     s_power_state = POWER_STATE_ON;
     rt_kprintf("[PWR] System ON\n");
 }
@@ -112,40 +101,58 @@ static void power_boot_sequence(void)
  * ===========================================================================*/
 
 /**
- * @brief  Execute shutdown sequence.
- *         1. Stop all treatment output
- *         2. Disable heating (large + small handle)
- *         3. Disable pump
- *         4. Disable 54V boost converters
- *         5. Turn off LED
- *         6. Disable 12V power
- *         7. Transition to POWER_STATE_OFF
+ * @brief  Send shutdown request to upper machine and wait for confirmation.
+ *         Frame: 55 AA 06 60 66 44 01 0A 00 [crcH] [crcL]
  */
+static void power_request_shutdown(void)
+{
+    /* Send shutdown request frame via protocol */
+    uint8_t params[1] = { 0x00 };
+    protocol_send_ack(FUNC_SHUTDOWN_REQ, params, 1);
+    rt_kprintf("[PWR] Shutdown request sent to upper machine\n");
+}
+
 static void power_shutdown_sequence(void)
 {
-    rt_kprintf("[PWR] Shutdown sequence started\n");
+    /* Step 1: Send shutdown request to upper machine */
+    s_shutdown_confirmed = 0;
+    power_request_shutdown();
 
-    /* Stop all treatment output */
+    /* Step 2: Wait for confirmation (timeout = forced shutdown) */
+    uint32_t start_tick = rt_tick_get();
+    while (!s_shutdown_confirmed) {
+        if ((rt_tick_get() - start_tick) >= rt_tick_from_millisecond(SHUTDOWN_CONFIRM_TIMEOUT_MS)) {
+            rt_kprintf("[PWR] Shutdown confirm timeout, forced shutdown\n");
+            break;
+        }
+        rt_thread_mdelay(POWER_THREAD_TICK);
+    }
+
+    /* Step 3: Stop all treatment output */
     protocol_stop_waveform();
 
-    /* Disable heating */
+    /* Step 4: Disable heating */
     bsp_heater_large_set(0);
     bsp_heater_small_set(0);
 
-    /* Disable pump */
+    /* Step 5: Disable pump */
     bsp_pump_set(0);
 
-    /* Disable 54V boost converters */
+    /* Step 6: Disable 54V boost */
     bsp_boost_1_enable(0);
     bsp_boost_2_enable(0);
 
-    /* Turn off LED */
-    bsp_led_set(0);
-
-    /* Disable 12V power */
+    /* Step 7: Disable 12V power */
     bsp_power_enable(0);
 
-    /* Transition to OFF state */
+    /* Step 8: Beep 1s */
+    BEEP_On();
+    rt_thread_mdelay(BEEP_DURATION_MS);
+    BEEP_Off();
+
+    /* Step 9: Turn off LED */
+    LED_Off(LED_Name_Green);
+
     s_power_state = POWER_STATE_OFF;
     rt_kprintf("[PWR] System OFF\n");
 }
@@ -154,11 +161,6 @@ static void power_shutdown_sequence(void)
  *  Power Management Thread
  * ===========================================================================*/
 
-/**
- * @brief  Power management thread entry.
- *         - In OFF state: waits for button press to boot
- *         - In ON state: monitors button for long press to shutdown
- */
 static void power_thread_entry(void *parameter)
 {
     uint32_t press_start = 0;
@@ -169,31 +171,26 @@ static void power_thread_entry(void *parameter)
         switch (s_power_state) {
 
         case POWER_STATE_OFF:
-            /* Execute boot sequence (blocks until button pressed) */
             s_power_state = POWER_STATE_BOOTING;
             power_boot_sequence();
             break;
 
         case POWER_STATE_BOOTING:
-            /* Should not stay here long, boot_sequence transitions to ON */
             rt_thread_mdelay(POWER_THREAD_TICK);
             break;
 
         case POWER_STATE_ON:
-            /* Monitor button for long press (3s) to trigger shutdown */
-            if (bsp_power_button_read()) {
-                /* Button is pressed */
-                if (press_start == 0) {
-                    press_start = rt_tick_get();
-                } else if ((rt_tick_get() - press_start) >= rt_tick_from_millisecond(BUTTON_SHUTDOWN_MS)) {
-                    /* Long press detected, initiate shutdown */
-                    rt_kprintf("[PWR] Long press detected, shutting down...\n");
-                    s_power_state = POWER_STATE_SHUTTING_DOWN;
-                    press_start = 0;
+            /* Monitor for long press (3s) via key driver */
+            {
+                uint8_t key = KEY_Read();
+                if (key != 0) {
+                    uint8_t event = key & 0xf0;
+                    uint8_t kval  = key & 0x0f;
+                    if (kval == KeyA_PRESS && event == KEY_Evt_Long2S) {
+                        rt_kprintf("[PWR] Long press detected, shutting down...\n");
+                        s_power_state = POWER_STATE_SHUTTING_DOWN;
+                    }
                 }
-            } else {
-                /* Button released, reset counter */
-                press_start = 0;
             }
             rt_thread_mdelay(POWER_THREAD_TICK);
             break;
@@ -209,14 +206,6 @@ static void power_thread_entry(void *parameter)
     }
 }
 
-/* ============================================================================
- *  Module Initialization
- * ===========================================================================*/
-
-/**
- * @brief  Create power management thread.
- * @return RT_EOK on success.
- */
 int power_task_init(void)
 {
     s_power_thread = rt_thread_create("power_task",
@@ -232,9 +221,5 @@ int power_task_init(void)
 
     rt_thread_startup(s_power_thread);
     rt_kprintf("[PWR] Power task initialized\n");
-
     return RT_EOK;
 }
-
-/* Auto-initialize at APP_INIT level */
-INIT_APP_EXPORT(power_task_init);

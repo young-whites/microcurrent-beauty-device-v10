@@ -32,6 +32,9 @@
 #include "rtt_system_work.h"
 /* macBSP 头文件 */
 #include "bsp_hard.h"
+#include "bsp_key.h"
+#include "bsp_led.h"
+#include "bsp_beep.h"
 
 /* macSYS 头文件 */
 #include "bsp_typedef.h"

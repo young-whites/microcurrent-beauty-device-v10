@@ -86,6 +86,16 @@ void MX_ADC1_Init(void);
 #define LARGE_HAND_TEMP_CTRL_Pin GPIO_PIN_11
 #define LARGE_HAND_TEMP_CTRL_GPIO_Port GPIOC
 
+/* Imported driver pin aliases */
+#define KEY1_Pin                    POWER_ON_OFF_Pin
+#define KEY1_GPIO_Port              POWER_ON_OFF_GPIO_Port
+#define KEY2_Pin                    START_LED_CTRL_Pin
+#define KEY2_GPIO_Port              START_LED_CTRL_GPIO_Port
+#define KEY3_Pin                    BEEP_Pin
+#define KEY3_GPIO_Port              BEEP_GPIO_Port
+#define LED_GREEN_Pin               START_LED_CTRL_Pin
+#define LED_GREEN_GPIO_Port         START_LED_CTRL_GPIO_Port
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
