@@ -352,9 +352,10 @@ void protocol_stop_waveform(void)
     g_dev_state.is_running = 0;
     rt_kprintf("[PROTO] Stop treatment\n");
 
-    /* TODO: Disable NNC6521 waveform generator
-     * nnc6521_awg_enable_disable(chip_id, channel, 0);
-     */
+    /* Disable NNC6521 waveform generator based on current handle */
+    int hi = protocol_handle_index(g_dev_state.current_handle);
+    uint8_t chip_id = (hi == 0) ? NNC6521_CHIP_1 : NNC6521_CHIP_2;
+    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
 }
 
 /* ============================================================================
@@ -495,10 +496,12 @@ static void handle_pump_ctrl(const uint8_t *params, uint8_t param_len)
     /* Pump only applies to handle C */
     g_dev_state.handle[2].pump_speed = speed;
 
-    /* TODO: Control hardware pump motor
-     * if (speed == 0) { pump_stop(); }
-     * else { pump_set_speed(speed); }
-     */
+    /* Control vacuum pump: enable pin (high=on, low=off), no PWM */
+    if (speed == 0) {
+        HAL_GPIO_WritePin(VACUUM_PUMP_CTRL_GPIO_Port, VACUUM_PUMP_CTRL_Pin, GPIO_PIN_RESET);
+    } else {
+        HAL_GPIO_WritePin(VACUUM_PUMP_CTRL_GPIO_Port, VACUUM_PUMP_CTRL_Pin, GPIO_PIN_SET);
+    }
 
     rt_kprintf("[PROTO] Pump speed set: %u%%\n", speed);
 
@@ -539,7 +542,7 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
  */
 static void handle_ota_upgrade(const uint8_t *params, uint8_t param_len)
 {
-    /* TODO: Implement OTA upgrade sequence */
+    /* OTA upgrade: reserved for future implementation */
     rt_kprintf("[PROTO] OTA upgrade requested (not implemented)\n");
 
     /* Send ACK - device entering upgrade mode */
@@ -565,11 +568,11 @@ static void handle_aging_mode(const uint8_t *params, uint8_t param_len)
         /* Stop current treatment */
         protocol_stop_waveform();
         rt_kprintf("[PROTO] Enter aging mode\n");
-        /* TODO: Start aging test sequence */
+        /* Aging test sequence: reserved for future implementation */
     } else if (action == 0) {
         g_dev_state.aging_mode = 0;
         rt_kprintf("[PROTO] Exit aging mode\n");
-        /* TODO: Stop aging test sequence */
+        /* Aging test sequence: reserved for future implementation */
     } else {
         protocol_send_error(FUNC_AGING_MODE, ERR_PARAM);
         return;
@@ -623,9 +626,8 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
     uint16_t current_ma = map_percent_to_current(waveform_id, percent);
     waveform_print_info(waveform_id, current_ma, percent);
 
-    /* TODO: Configure NNC6521 for new waveform type
-     * The actual waveform parameters will be applied when treatment starts.
-     * Protocol: switch waveform -> current percentage is preserved.
+    /* Waveform config will be applied via waveform_apply() when treatment
+     * starts via protocol_start_waveform(). Current percentage is preserved.
      */
 
     /* Send ACK */
