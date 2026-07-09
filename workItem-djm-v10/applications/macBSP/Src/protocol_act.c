@@ -190,12 +190,30 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Stop current output before switching */
+    /* Stop current waveform output */
     protocol_stop_waveform();
 
-    /* Save current handle state and restore target handle state */
+    /* Disable all heating outputs */
+    bsp_heater_large_set(0);
+    bsp_heater_small_set(0);
+
+    /* Disable pump */
+    bsp_pump_set(0);
+
+    /* Clear all handles' parameters (mutually exclusive) */
+    for (int i = 0; i < 3; i++) {
+        g_dev_state.handle[i].current_percent = 0;
+        g_dev_state.handle[i].temperature = 0;
+        g_dev_state.handle[i].pump_speed = 0;
+        temp_pid_set_target(i, 0.0f);
+    }
+
+    /* Set new active handle */
     g_dev_state.current_handle = handle_id;
-    rt_kprintf("[PROTO] Switch to handle %c (0x%02X)\n", 'A' + hi, handle_id);
+    g_dev_state.is_running = 0;
+
+    rt_kprintf("[PROTO] Switch to handle %c (0x%02X), all other params cleared\n",
+               'A' + hi, handle_id);
 
     /* Send ACK with handle ID */
     uint8_t ack_params[1] = { handle_id };
