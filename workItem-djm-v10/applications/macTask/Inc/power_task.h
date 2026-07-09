@@ -18,11 +18,6 @@ typedef enum {
 int power_task_init(void);
 power_state_t power_get_state(void);
 
-/* Called by KEY_Scan() in bsp_key.c */
-void power_request_boot(void);
-void power_request_shutdown_by_key(void);
-void power_force_shutdown(void);
-
 /* Called by protocol module when shutdown ACK received */
 void power_shutdown_confirm(void);
 

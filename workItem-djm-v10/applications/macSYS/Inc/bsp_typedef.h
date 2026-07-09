@@ -32,7 +32,14 @@ extern RecordStruct Record;
 
 // 以下为移植时必须需要的结构体等的初始化---------------------------------------------------------------------------------------------------------
 typedef struct {
+    /* Legacy flags */
     rt_uint8_t   air_rate_set;      // 潮气达标率设置标志(0：未处于设置状态   1：处于设置状态)
+
+    /* Power management flags (set by KEY_Scan, read by power_task) */
+    volatile rt_uint8_t   power_boot_request;       // 1 = boot requested by key press
+    volatile rt_uint8_t   power_shutdown_request;   // 1 = graceful shutdown requested (long press 2s)
+    volatile rt_uint8_t   power_force_shutdown;     // 1 = forced shutdown requested (long press 4s)
+    volatile rt_uint8_t   power_shutdown_confirmed; // 1 = host ACK received for shutdown
 }FlagStruct;
 extern FlagStruct Flag;
 

@@ -2,14 +2,15 @@
  * Power management task for DJM-V10
  * Handles boot/shutdown sequences with upper machine confirmation.
  *
- * Key events are handled by KEY_Scan() in bsp_key.c, which calls
- * power_request_boot() / power_request_shutdown_by_key() / power_force_shutdown().
+ * Key events are handled by KEY_Scan() in bsp_key.c, which sets
+ * Flag.power_boot_request / Flag.power_shutdown_request / Flag.power_force_shutdown.
  * This thread monitors s_power_state and executes the actual sequences.
  */
 #include "power_task.h"
 #include "bsp_hard.h"
 #include "bsp_led.h"
 #include "bsp_beep.h"
+#include "bsp_typedef.h"
 #include "protocol.h"
 
 #define DBG_TAG "pwr"
@@ -36,12 +37,6 @@
 static power_state_t s_power_state = POWER_STATE_OFF;
 static rt_thread_t s_power_thread = RT_NULL;
 
-/* Flags set by KEY_Scan() or protocol handler */
-static volatile uint8_t s_boot_requested = 0;
-static volatile uint8_t s_shutdown_requested = 0;
-static volatile uint8_t s_force_shutdown = 0;
-static volatile uint8_t s_shutdown_confirmed = 0;
-
 /* ============================================================================
  *  Public API
  * ===========================================================================*/
@@ -52,35 +47,12 @@ power_state_t power_get_state(void)
 }
 
 /**
- * @brief  Called by KEY_Scan() on short press - request boot.
- */
-void power_request_boot(void)
-{
-    s_boot_requested = 1;
-}
-
-/**
- * @brief  Called by KEY_Scan() on long press 2s - request graceful shutdown.
- */
-void power_request_shutdown_by_key(void)
-{
-    s_shutdown_requested = 1;
-}
-
-/**
- * @brief  Called by KEY_Scan() on long press 4s - forced shutdown (skip host ACK).
- */
-void power_force_shutdown(void)
-{
-    s_force_shutdown = 1;
-}
-
-/**
  * @brief  Called by protocol module when shutdown ACK received.
+ *         Sets Flag.power_shutdown_confirmed.
  */
 void power_shutdown_confirm(void)
 {
-    s_shutdown_confirmed = 1;
+    Flag.power_shutdown_confirmed = 1;
 }
 
 /* ============================================================================
@@ -158,12 +130,12 @@ static void power_shutdown_graceful(void)
 {
     rt_kprintf("[PWR] Graceful shutdown initiated\n");
 
-    s_shutdown_confirmed = 0;
+    Flag.power_shutdown_confirmed = 0;
     power_request_shutdown_to_host();
 
     /* Wait for host ACK */
     uint32_t start_tick = rt_tick_get();
-    while (!s_shutdown_confirmed) {
+    while (!Flag.power_shutdown_confirmed) {
         if ((rt_tick_get() - start_tick) >= rt_tick_from_millisecond(SHUTDOWN_CONFIRM_TIMEOUT_MS)) {
             rt_kprintf("[PWR] Shutdown confirm timeout, forced shutdown\n");
             break;
@@ -187,8 +159,8 @@ static void power_thread_entry(void *parameter)
 
         case POWER_STATE_OFF:
             /* Wait for boot request from KEY_Scan() */
-            if (s_boot_requested) {
-                s_boot_requested = 0;
+            if (Flag.power_boot_request) {
+                Flag.power_boot_request = 0;
                 s_power_state = POWER_STATE_BOOTING;
                 power_boot_sequence();
             }
@@ -201,14 +173,14 @@ static void power_thread_entry(void *parameter)
 
         case POWER_STATE_ON:
             /* Check for shutdown requests from KEY_Scan() */
-            if (s_force_shutdown) {
-                s_force_shutdown = 0;
-                s_shutdown_requested = 0;
+            if (Flag.power_force_shutdown) {
+                Flag.power_force_shutdown = 0;
+                Flag.power_shutdown_request = 0;
                 s_power_state = POWER_STATE_SHUTTING_DOWN;
                 rt_kprintf("[PWR] Forced shutdown by long press 4s\n");
                 power_do_shutdown();
-            } else if (s_shutdown_requested) {
-                s_shutdown_requested = 0;
+            } else if (Flag.power_shutdown_request) {
+                Flag.power_shutdown_request = 0;
                 s_power_state = POWER_STATE_SHUTTING_DOWN;
                 power_shutdown_graceful();
             }

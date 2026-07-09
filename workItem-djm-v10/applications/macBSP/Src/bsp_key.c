@@ -163,14 +163,15 @@ uint8_t KEY_GetNumber(void)
 
 
 
-#include "power_task.h"
+#include "bsp_typedef.h"
 
 /*****************************************************************************
 * @brief  Key event handler - processes key events from buffer.
 *         KeyA (power button):
-*           - Press: trigger boot when system is OFF
-*           - Long press 2s: trigger shutdown request when system is ON
-*           - Long press 4s: forced shutdown (bypass host confirmation)
+*           - Press: set Flag.power_boot_request (when system OFF)
+*           - Long press 2s: set Flag.power_shutdown_request (when system ON)
+*           - Long press 4s: set Flag.power_force_shutdown (when system ON)
+*         Flag bits are polled by power_task thread.
 *****************************************************************************/
 void KEY_Scan(void)
 {
@@ -186,19 +187,16 @@ void KEY_Scan(void)
 				switch (event)
 				{
 					case KEY_Evt_Press:
-						if (power_get_state() == POWER_STATE_OFF) {
-							power_request_boot();
-						}
+						Flag.power_boot_request = 1;
+						rt_kprintf("[KEY] Power button pressed, boot requested\n");
 						break;
 					case KEY_Evt_Long2S:
-						if (power_get_state() == POWER_STATE_ON) {
-							power_request_shutdown_by_key();
-						}
+						Flag.power_shutdown_request = 1;
+						rt_kprintf("[KEY] Long press 2s, shutdown requested\n");
 						break;
 					case KEY_Evt_Long4S:
-						if (power_get_state() == POWER_STATE_ON) {
-							power_force_shutdown();
-						}
+						Flag.power_force_shutdown = 1;
+						rt_kprintf("[KEY] Long press 4s, forced shutdown\n");
 						break;
 				}
 			} break;
