@@ -10,12 +10,12 @@
 #define MACBSP_INC_BSP_LED_H_
 #include "bsp_sys.h"
 
-#define             LED_NUM             (30)
-/****************************** LED 函数宏定义***************************************/
-#define             macLED_GREEN_OFF()                          HAL_GPIO_WritePin ( LED_GREEN_GPIO_Port, LED_GREEN_Pin , GPIO_PIN_RESET )
-#define             macLED_GREEN_ON()                           HAL_GPIO_WritePin ( LED_GREEN_GPIO_Port, LED_GREEN_Pin , GPIO_PIN_SET )
+#define             LED_NUM             (1)
+/****************************** LED macro definitions ***************************************/
+#define             macLED_GREEN_OFF()                          HAL_GPIO_WritePin ( START_LED_CTRL_GPIO_Port, START_LED_CTRL_Pin , GPIO_PIN_RESET )
+#define             macLED_GREEN_ON()                           HAL_GPIO_WritePin ( START_LED_CTRL_GPIO_Port, START_LED_CTRL_Pin , GPIO_PIN_SET )
 
-/*LED名称类型*/
+/* LED name type */
 typedef	enum
 {
     LED_Name_Green = (0x01),
@@ -23,7 +23,7 @@ typedef	enum
 
 
 
-/************************** PAD 函数声明********************************/
+/************************** LED function declarations ********************************/
 void LED_Init(void);
 void LED_Out(int8_t ledName, int8_t ledState);
 int8_t 	LED_GetNumber(void);

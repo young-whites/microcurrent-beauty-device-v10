@@ -8,24 +8,22 @@
 #ifndef MACBSP_INC_BSP_KEY_H_
 #define MACBSP_INC_BSP_KEY_H_
 
-#include <applications/macSYS/Inc/macSYS.h>
+#include "bsp_sys.h"
 
 
 
-#define		KEY_NUM			(3)		// 按键数量
+#define		KEY_NUM			(1)		// Number of keys
 //------------------------------------------------------------------------
 typedef	enum
 {
     KeyA_PRESS= (0x01),
-    KeyB_PRESS,
-    KeyC_PRESS,
 }KEY_Val_TypeDef;
 //------------------------------------------------------------------------
-typedef	enum {					    // 按键事件类型
-    KEY_Evt_Press   = (0x80),		// 按下
-    KEY_Evt_Release = (0x40),		// 松开
-    KEY_Evt_Long2S  = (0x20),		// 长按2s
-    KEY_Evt_Long4S  = (0x10),		// 长按4s
+typedef	enum {					    // Key event types
+    KEY_Evt_Press   = (0x80),		// Pressed
+    KEY_Evt_Release = (0x40),		// Released
+    KEY_Evt_Long2S  = (0x20),		// Long press 2s
+    KEY_Evt_Long4S  = (0x10),		// Long press 4s
 }KEY_Evt_TypeDef;
 //------------------------------------------------------------------------
 

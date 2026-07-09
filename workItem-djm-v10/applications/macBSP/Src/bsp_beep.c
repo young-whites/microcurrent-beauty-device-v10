@@ -1,4 +1,4 @@
-#include <applications/macBSP/Inc/bsp_beep.h>
+#include "bsp_beep.h"
 /*
  * Copyright (c) 2006-2021, RT-Thread Development Team
  *
@@ -10,39 +10,39 @@
  */
 
 /*---------------------------------------------------------------------------------------------------------------*/
-/* 以下是蜂鸣器驱动函数（可移植通用）                                                                                                                                                          */
+/* Buzzer driver functions (portable)                                                                                                                                                          */
 /*---------------------------------------------------------------------------------------------------------------*/
-static  int16_t beepClk=0;                          // 蜂鸣器鸣叫时钟（单位：ms）
-static  int16_t beepCyc=0;                          // 蜂鸣器单次鸣叫的周期（一次完整鸣叫+间隔的总时间，单位：ms）
-static  int16_t beepDty=0;                          // 蜂鸣器单次鸣叫的时间（周期中鸣叫所占的时间，单位：ms）
-static  int8_t  beepCnt=0;                          // 蜂鸣器鸣叫计数
-static  int8_t  beepCry=0;                          // 蜂鸣器鸣叫次数（0表示不鸣叫）
-static  int8_t  beepMut=0;                          // 蜂鸣器停顿周期数（0表示不停顿）
-static  int8_t  beepCct=0;                          // 蜂鸣器重复计数
-static  int8_t  beepRep=0;                          // 蜂鸣器重复鸣叫次数（0表示不重复，100以上表示无限重复）
+static  int16_t beepClk=0;                          // Buzzer clock (unit: ms)
+static  int16_t beepCyc=0;                          // Buzzer single beep cycle (total beep+interval, unit: ms)
+static  int16_t beepDty=0;                          // Buzzer single beep duration (beep time within cycle, unit: ms)
+static  int8_t  beepCnt=0;                          // Buzzer beep counter
+static  int8_t  beepCry=0;                          // Buzzer beep count (0 = no beep)
+static  int8_t  beepMut=0;                          // Buzzer pause cycle count (0 = no pause)
+static  int8_t  beepCct=0;                          // Buzzer repeat counter
+static  int8_t  beepRep=0;                          // Buzzer repeat beep count (0 = no repeat, 100+ = infinite)
 
 /*****************************************************************************
-* 功能:       蜂鸣器关闭
+* @brief  Turn buzzer off.
 *****************************************************************************/
 void BEEP_Off(void)
 {
-    beepCry=0;                                      // 禁止（间隔）鸣叫
+    beepCry=0;                                      // Disable (interval) beep
     macBEEP_OFF();
 }
 
 /*****************************************************************************
-* 功能:       蜂鸣器长鸣
+* @brief  Turn buzzer on (continuous).
 *****************************************************************************/
 void BEEP_On(void)
 {
-    beepCry=0;                                      // 禁止（间隔）鸣叫
+    beepCry=0;                                      // Disable (interval) beep
     macBEEP_ON();
 }
 
 /*****************************************************************************
-* 功能:       设置蜂鸣器鸣叫周期及占空比
-* 参数:       Cycle   周期（一次完整鸣叫+间隔的总时间，单位：ms）
-*           Duty    占空比（周期中鸣叫所占的时间，单位：ms）
+* @brief  Set buzzer beep cycle and duty.
+* @param  Cycle  Cycle time (total beep+interval, unit: ms)
+* @param  Duty   Duty time (beep time within cycle, unit: ms)
 *****************************************************************************/
 void BEEP_SetCycleDuty(int16_t Cycle, int16_t Duty)
 {
@@ -55,10 +55,10 @@ void BEEP_SetCycleDuty(int16_t Cycle, int16_t Duty)
 
 
 /*****************************************************************************
-* 功能:       蜂鸣器鸣叫（指定次数）
-* 参数:       cry     蜂鸣器鸣叫次数（0表示不鸣叫）
-*           mute    蜂鸣器停顿周期数（0表示不停顿）
-*           repeat  蜂鸣器重复鸣叫次数（0表示不重复，100以上表示无限重复）
+* @brief  Buzzer beep with specified count.
+* @param  cry     Beep count (0 = no beep)
+* @param  mute    Pause cycle count (0 = no pause)
+* @param  repeat  Repeat beep count (0 = no repeat, 100+ = infinite)
 *****************************************************************************/
 void BEEP_Blink(int8_t cry, int8_t mute, int8_t repeat)
 {
@@ -71,24 +71,24 @@ void BEEP_Blink(int8_t cry, int8_t mute, int8_t repeat)
 
 
 /*****************************************************************************
-* 功能:       蜂鸣器扫描
-* 说明:       扫描周期：1ms。
+* @brief  Buzzer scan driver.
+* @note   Scan period: 1ms.
 *****************************************************************************/
 void BEEP_DrvScan(void)
 {
-    if(beepCry){                                    // 需要鸣叫
-        if(++beepClk >= beepCyc){                   // 鸣叫小周期结束
+    if(beepCry){                                    // Beep active
+        if(++beepClk >= beepCyc){                   // Sub-cycle ended
             beepClk=0;
-            if(++beepCnt >= (beepCry+beepMut)){     // 鸣叫中周期结束
+            if(++beepCnt >= (beepCry+beepMut)){     // Mid-cycle ended
                 beepCnt=0;
-                if(++beepCct >= beepRep){           // 鸣叫大周期结束
+                if(++beepCct >= beepRep){           // Major-cycle ended
                     beepCct=0;
-                    if(beepRep < 100)   beepCry=0;  // 重复次数到达，结束鸣叫
+                    if(beepRep < 100)   beepCry=0;  // Repeat count reached, stop beeping
                 }
             }
-        }else if(beepClk >= beepDty){               // 后半小周 不叫
+        }else if(beepClk >= beepDty){               // Second half: off
             macBEEP_OFF();
-        }else if(beepCnt < beepCry){                // （仅非停顿期间的）前半小周 鸣叫
+        }else if(beepCnt < beepCry){                // First half (non-pause): on
             macBEEP_ON();
         }
     }
@@ -96,8 +96,8 @@ void BEEP_DrvScan(void)
 
 
 /*****************************************************************************
-* 功能:       蜂鸣器初始化函数
-* 说明:       None
+* @brief  Buzzer initialization function.
+* @note   None
 *****************************************************************************/
 void Beep_Init ( void )
 {
@@ -108,7 +108,7 @@ void Beep_Init ( void )
 
 
 /*---------------------------------------------------------------------------------------------------------------*/
-/* 以下是蜂鸣器线程的创建以及回调函数                                                                            */
+/* Buzzer thread creation and callback functions                                                                            */
 /*---------------------------------------------------------------------------------------------------------------*/
 
 
@@ -130,10 +130,10 @@ static void beepTimer_callback(void* parameter)
 int beepTimer_Init(void)
 {
     static rt_timer_t   beepTimer = RT_NULL;
-    /* 创建beep的软件定时器线程 */
+    /* Create beep software timer */
     beepTimer = rt_timer_create("beepTimer_callback", beepTimer_callback, RT_NULL, 1, RT_TIMER_FLAG_PERIODIC | RT_TIMER_FLAG_SOFT_TIMER);
 
-    /* 启动beep软件定时器 */
+    /* Start beep software timer */
     if(beepTimer != RT_NULL )
     {
         rt_kprintf("PRINTF:%d. Beep initialize succeed!\r\n",Record.kprintf_cnt++);
@@ -155,13 +155,3 @@ int Beep_Link_Test(void)
     return RT_EOK;
 }
 MSH_CMD_EXPORT(Beep_Link_Test,Test2);
-
-
-
-
-
-
-
-
-
-

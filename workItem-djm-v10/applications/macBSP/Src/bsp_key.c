@@ -14,7 +14,7 @@
 extern uint8_t  KEY_GetState(uint8_t keyName);
 extern uint8_t  KEY_GetNumber(void);
 //----------------------------------------------------------------------------
-#define		KEY_MAX						(3)			// Maximum supported keys
+#define		KEY_MAX						(1)			// Maximum supported keys
 //----------------------------------------------------------------------------
 #define		KEY_VAL_BUF_SIZE			(KEY_MAX+3)	// Key value buffer size
 #define		KEY_SCAN_FILTER_TIMES		(5)			// Debounce filter count (filter time = count * scan period; e.g. 10ms scan period => 50ms debounce)
@@ -144,9 +144,7 @@ uint8_t KEY_GetState(uint8_t keyName)
 	uint8_t	stat = 0;
 	switch (keyName)
 	{
-		case KeyA_PRESS:stat = (HAL_GPIO_ReadPin(KEY1_GPIO_Port, KEY1_Pin) ? 0 : 1);break;
-        case KeyB_PRESS:stat = (HAL_GPIO_ReadPin(KEY2_GPIO_Port, KEY2_Pin) ? 0 : 1);break;
-        case KeyC_PRESS:stat = (HAL_GPIO_ReadPin(KEY3_GPIO_Port, KEY3_Pin) ? 0 : 1);break;
+		case KeyA_PRESS:stat = (HAL_GPIO_ReadPin(POWER_ON_OFF_GPIO_Port, POWER_ON_OFF_Pin) ? 0 : 1);break;
 	}
 	return stat;
 }
@@ -168,7 +166,6 @@ uint8_t KEY_GetNumber(void)
 /*****************************************************************************
 * @brief  Key event handler - processes key events from buffer.
 *         KeyA (power button): short press = toggle power, long press 4s = forced shutdown
-*         KeyB/KeyC: reserved for future use
 *****************************************************************************/
 void KEY_Scan(void)
 {
@@ -191,26 +188,6 @@ void KEY_Scan(void)
 						break;
 					case KEY_Evt_Long4S:
 						rt_kprintf("[KEY] Power button long press 4s - forced shutdown\n");
-						break;
-				}
-			} break;
-
-			case KeyB_PRESS:
-			{
-				switch (event)
-				{
-					case KEY_Evt_Release:
-						rt_kprintf("[KEY] KeyB pressed\n");
-						break;
-				}
-			} break;
-
-			case KeyC_PRESS:
-			{
-				switch (event)
-				{
-					case KEY_Evt_Release:
-						rt_kprintf("[KEY] KeyC pressed\n");
 						break;
 				}
 			} break;

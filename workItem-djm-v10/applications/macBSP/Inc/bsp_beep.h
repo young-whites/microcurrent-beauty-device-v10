@@ -11,13 +11,13 @@
 
 #define APPLICATIONS_MACBSP_INC_BSP_BEEP_H_
 
-#include <applications/macSYS/Inc/macSYS.h>
+#include "bsp_sys.h"
 
-/******************** BEEP 函数宏定义 **************************/
+/******************** BEEP macro definitions **************************/
 #define             macBEEP_OFF()                            HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin, GPIO_PIN_RESET);
 #define             macBEEP_ON()                             HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin, GPIO_PIN_SET);
 
-/************************** BEEP 函数声明********************************/
+/************************** BEEP function declarations ********************************/
 void Beep_Init(void);
 void BEEP_Off(void);
 void BEEP_On(void);
