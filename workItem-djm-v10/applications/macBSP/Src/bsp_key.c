@@ -163,9 +163,14 @@ uint8_t KEY_GetNumber(void)
 
 
 
+#include "power_task.h"
+
 /*****************************************************************************
 * @brief  Key event handler - processes key events from buffer.
-*         KeyA (power button): short press = toggle power, long press 4s = forced shutdown
+*         KeyA (power button):
+*           - Press: trigger boot when system is OFF
+*           - Long press 2s: trigger shutdown request when system is ON
+*           - Long press 4s: forced shutdown (bypass host confirmation)
 *****************************************************************************/
 void KEY_Scan(void)
 {
@@ -180,14 +185,20 @@ void KEY_Scan(void)
 			{
 				switch (event)
 				{
-					case KEY_Evt_Release:
-						rt_kprintf("[KEY] Power button short press\n");
+					case KEY_Evt_Press:
+						if (power_get_state() == POWER_STATE_OFF) {
+							power_request_boot();
+						}
 						break;
 					case KEY_Evt_Long2S:
-						rt_kprintf("[KEY] Power button long press 2s\n");
+						if (power_get_state() == POWER_STATE_ON) {
+							power_request_shutdown_by_key();
+						}
 						break;
 					case KEY_Evt_Long4S:
-						rt_kprintf("[KEY] Power button long press 4s - forced shutdown\n");
+						if (power_get_state() == POWER_STATE_ON) {
+							power_force_shutdown();
+						}
 						break;
 				}
 			} break;

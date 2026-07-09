@@ -1,10 +1,13 @@
 /*
  * Power management task for DJM-V10
- * Handles boot/shutdown sequences with upper machine confirmation
+ * Handles boot/shutdown sequences with upper machine confirmation.
+ *
+ * Key events are handled by KEY_Scan() in bsp_key.c, which calls
+ * power_request_boot() / power_request_shutdown_by_key() / power_force_shutdown().
+ * This thread monitors s_power_state and executes the actual sequences.
  */
 #include "power_task.h"
 #include "bsp_hard.h"
-#include "bsp_key.h"
 #include "bsp_led.h"
 #include "bsp_beep.h"
 #include "protocol.h"
@@ -24,7 +27,6 @@
 #define BEEP_DURATION_MS            1000
 #define SHUTDOWN_CONFIRM_TIMEOUT_MS 5000
 
-/* Shutdown request function code */
 #define FUNC_SHUTDOWN_REQ           0x0A
 
 /* ============================================================================
@@ -34,7 +36,10 @@
 static power_state_t s_power_state = POWER_STATE_OFF;
 static rt_thread_t s_power_thread = RT_NULL;
 
-/* Shutdown confirmation flag (set by protocol handler when ACK received) */
+/* Flags set by KEY_Scan() or protocol handler */
+static volatile uint8_t s_boot_requested = 0;
+static volatile uint8_t s_shutdown_requested = 0;
+static volatile uint8_t s_force_shutdown = 0;
 static volatile uint8_t s_shutdown_confirmed = 0;
 
 /* ============================================================================
@@ -47,7 +52,31 @@ power_state_t power_get_state(void)
 }
 
 /**
- * @brief  Called by protocol module when shutdown confirmation received.
+ * @brief  Called by KEY_Scan() on short press - request boot.
+ */
+void power_request_boot(void)
+{
+    s_boot_requested = 1;
+}
+
+/**
+ * @brief  Called by KEY_Scan() on long press 2s - request graceful shutdown.
+ */
+void power_request_shutdown_by_key(void)
+{
+    s_shutdown_requested = 1;
+}
+
+/**
+ * @brief  Called by KEY_Scan() on long press 4s - forced shutdown (skip host ACK).
+ */
+void power_force_shutdown(void)
+{
+    s_force_shutdown = 1;
+}
+
+/**
+ * @brief  Called by protocol module when shutdown ACK received.
  */
 void power_shutdown_confirm(void)
 {
@@ -60,23 +89,7 @@ void power_shutdown_confirm(void)
 
 static void power_boot_sequence(void)
 {
-    rt_kprintf("[PWR] Waiting for power button...\n");
-
-    /* Wait for KEY_Evt_Press from key driver (blocking on key buffer) */
-    uint8_t key = 0;
-    while (1) {
-        key = KEY_Read();
-        if (key != 0) {
-            uint8_t event = key & 0xf0;
-            uint8_t kval  = key & 0x0f;
-            if (kval == KeyA_PRESS && event == KEY_Evt_Press) {
-                break;
-            }
-        }
-        rt_thread_mdelay(POWER_THREAD_TICK);
-    }
-
-    rt_kprintf("[PWR] Power button pressed, booting...\n");
+    rt_kprintf("[PWR] Boot sequence started\n");
 
     /* Step 1: Turn on system LED (PA6) */
     LED_On(LED_Name_Green);
@@ -100,25 +113,55 @@ static void power_boot_sequence(void)
  *  Shutdown Sequence
  * ===========================================================================*/
 
-/**
- * @brief  Send shutdown request to upper machine and wait for confirmation.
- *         Frame: 55 AA 06 60 66 44 01 0A 00 [crcH] [crcL]
- */
-static void power_request_shutdown(void)
+static void power_request_shutdown_to_host(void)
 {
-    /* Send shutdown request frame via protocol */
     uint8_t params[1] = { 0x00 };
     protocol_send_ack(FUNC_SHUTDOWN_REQ, params, 1);
     rt_kprintf("[PWR] Shutdown request sent to upper machine\n");
 }
 
-static void power_shutdown_sequence(void)
+static void power_do_shutdown(void)
 {
-    /* Step 1: Send shutdown request to upper machine */
-    s_shutdown_confirmed = 0;
-    power_request_shutdown();
+    /* Stop all treatment output */
+    protocol_stop_waveform();
 
-    /* Step 2: Wait for confirmation (timeout = forced shutdown) */
+    /* Disable heating */
+    bsp_heater_large_set(0);
+    bsp_heater_small_set(0);
+
+    /* Disable pump */
+    bsp_pump_set(0);
+
+    /* Disable 54V boost */
+    bsp_boost_1_enable(0);
+    bsp_boost_2_enable(0);
+
+    /* Disable 12V power */
+    bsp_power_enable(0);
+
+    /* Beep 1s */
+    BEEP_On();
+    rt_thread_mdelay(BEEP_DURATION_MS);
+    BEEP_Off();
+
+    /* Turn off LED */
+    LED_Off(LED_Name_Green);
+
+    s_power_state = POWER_STATE_OFF;
+    rt_kprintf("[PWR] System OFF\n");
+}
+
+/**
+ * @brief  Graceful shutdown: send request to host, wait for ACK (5s timeout).
+ */
+static void power_shutdown_graceful(void)
+{
+    rt_kprintf("[PWR] Graceful shutdown initiated\n");
+
+    s_shutdown_confirmed = 0;
+    power_request_shutdown_to_host();
+
+    /* Wait for host ACK */
     uint32_t start_tick = rt_tick_get();
     while (!s_shutdown_confirmed) {
         if ((rt_tick_get() - start_tick) >= rt_tick_from_millisecond(SHUTDOWN_CONFIRM_TIMEOUT_MS)) {
@@ -128,33 +171,7 @@ static void power_shutdown_sequence(void)
         rt_thread_mdelay(POWER_THREAD_TICK);
     }
 
-    /* Step 3: Stop all treatment output */
-    protocol_stop_waveform();
-
-    /* Step 4: Disable heating */
-    bsp_heater_large_set(0);
-    bsp_heater_small_set(0);
-
-    /* Step 5: Disable pump */
-    bsp_pump_set(0);
-
-    /* Step 6: Disable 54V boost */
-    bsp_boost_1_enable(0);
-    bsp_boost_2_enable(0);
-
-    /* Step 7: Disable 12V power */
-    bsp_power_enable(0);
-
-    /* Step 8: Beep 1s */
-    BEEP_On();
-    rt_thread_mdelay(BEEP_DURATION_MS);
-    BEEP_Off();
-
-    /* Step 9: Turn off LED */
-    LED_Off(LED_Name_Green);
-
-    s_power_state = POWER_STATE_OFF;
-    rt_kprintf("[PWR] System OFF\n");
+    power_do_shutdown();
 }
 
 /* ============================================================================
@@ -163,16 +180,19 @@ static void power_shutdown_sequence(void)
 
 static void power_thread_entry(void *parameter)
 {
-    uint32_t press_start = 0;
-
     rt_kprintf("[PWR] Power management thread started\n");
 
     while (1) {
         switch (s_power_state) {
 
         case POWER_STATE_OFF:
-            s_power_state = POWER_STATE_BOOTING;
-            power_boot_sequence();
+            /* Wait for boot request from KEY_Scan() */
+            if (s_boot_requested) {
+                s_boot_requested = 0;
+                s_power_state = POWER_STATE_BOOTING;
+                power_boot_sequence();
+            }
+            rt_thread_mdelay(POWER_THREAD_TICK);
             break;
 
         case POWER_STATE_BOOTING:
@@ -180,23 +200,23 @@ static void power_thread_entry(void *parameter)
             break;
 
         case POWER_STATE_ON:
-            /* Monitor for long press (3s) via key driver */
-            {
-                uint8_t key = KEY_Read();
-                if (key != 0) {
-                    uint8_t event = key & 0xf0;
-                    uint8_t kval  = key & 0x0f;
-                    if (kval == KeyA_PRESS && event == KEY_Evt_Long2S) {
-                        rt_kprintf("[PWR] Long press detected, shutting down...\n");
-                        s_power_state = POWER_STATE_SHUTTING_DOWN;
-                    }
-                }
+            /* Check for shutdown requests from KEY_Scan() */
+            if (s_force_shutdown) {
+                s_force_shutdown = 0;
+                s_shutdown_requested = 0;
+                s_power_state = POWER_STATE_SHUTTING_DOWN;
+                rt_kprintf("[PWR] Forced shutdown by long press 4s\n");
+                power_do_shutdown();
+            } else if (s_shutdown_requested) {
+                s_shutdown_requested = 0;
+                s_power_state = POWER_STATE_SHUTTING_DOWN;
+                power_shutdown_graceful();
             }
             rt_thread_mdelay(POWER_THREAD_TICK);
             break;
 
         case POWER_STATE_SHUTTING_DOWN:
-            power_shutdown_sequence();
+            rt_thread_mdelay(POWER_THREAD_TICK);
             break;
 
         default:
@@ -205,6 +225,10 @@ static void power_thread_entry(void *parameter)
         }
     }
 }
+
+/* ============================================================================
+ *  Module Initialization
+ * ===========================================================================*/
 
 int power_task_init(void)
 {
