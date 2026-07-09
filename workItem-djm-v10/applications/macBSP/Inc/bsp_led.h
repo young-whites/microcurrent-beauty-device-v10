@@ -12,8 +12,8 @@
 
 #define             LED_NUM             (1)
 /****************************** LED macro definitions ***************************************/
-#define             macLED_GREEN_OFF()                          HAL_GPIO_WritePin ( START_LED_CTRL_GPIO_Port, START_LED_CTRL_Pin , GPIO_PIN_RESET )
-#define             macLED_GREEN_ON()                           HAL_GPIO_WritePin ( START_LED_CTRL_GPIO_Port, START_LED_CTRL_Pin , GPIO_PIN_SET )
+#define             macLED_START_OFF()          HAL_GPIO_WritePin ( START_LED_CTRL_GPIO_Port, START_LED_CTRL_Pin , GPIO_PIN_RESET )
+#define             macLED_START_ON()           HAL_GPIO_WritePin ( START_LED_CTRL_GPIO_Port, START_LED_CTRL_Pin , GPIO_PIN_SET )
 
 /* LED name type */
 typedef	enum

@@ -262,8 +262,8 @@ void LED_Out(int8_t ledName, int8_t ledState)
 	switch(ledName)
 	{
 		case LED_Name_Green:
-			if(ledState)	macLED_GREEN_ON();
-			else			macLED_GREEN_OFF();
+			if(ledState)	macLED_START_ON();
+			else			macLED_START_OFF();
 			break;
 	}
 	#endif
