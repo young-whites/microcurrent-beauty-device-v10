@@ -66,10 +66,9 @@ static void power_boot_sequence(void)
     /* Step 1: Turn on system LED (PA6) */
     LED_On(LED_Name_Green);
 
-    /* Step 2: Beep for 1s */
-    BEEP_On();
-    rt_thread_mdelay(BEEP_DURATION_MS);
-    BEEP_Off();
+    /* Step 2: Beep 1s (non-blocking, driven by beep timer) */
+    BEEP_SetCycleDuty(BEEP_DURATION_MS, BEEP_DURATION_MS);
+    BEEP_Blink(1, 0, 0);
 
     /* Step 3: Enable 12V system power (PA4) */
     bsp_power_enable(1);
@@ -111,10 +110,10 @@ static void power_do_shutdown(void)
     /* Disable 12V power */
     bsp_power_enable(0);
 
-    /* Beep 1s */
-    BEEP_On();
+    /* Beep 1s (non-blocking, wait for completion) */
+    BEEP_SetCycleDuty(BEEP_DURATION_MS, BEEP_DURATION_MS);
+    BEEP_Blink(1, 0, 0);
     rt_thread_mdelay(BEEP_DURATION_MS);
-    BEEP_Off();
 
     /* Turn off LED */
     LED_Off(LED_Name_Green);
