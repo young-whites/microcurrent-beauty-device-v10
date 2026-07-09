@@ -6,6 +6,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2026-06-16     auto-gen     protocol header for DJM-V10 microcurrent beauty device
+ * 2026-07-09     refactor     Move action handlers to protocol_act.h
  */
 
 #ifndef APPLICATIONS_MACBSP_INC_PROTOCOL_H_
@@ -185,23 +186,6 @@ void protocol_send_error(uint8_t func, uint8_t err_code);
  * @return Index 0~2 on valid, -1 on invalid.
  */
 int protocol_handle_index(uint8_t handle_id);
-
-/**
- * @brief  Update NNC6521 waveform output based on current device state.
- *         Maps current_percent to the active waveform's current range.
- * @param  handle_idx  Handle index (0~2).
- */
-void protocol_update_current_output(uint8_t handle_idx);
-
-/**
- * @brief  Start NNC6521 waveform output for the active handle.
- */
-void protocol_start_waveform(void);
-
-/**
- * @brief  Stop NNC6521 waveform output for the active handle.
- */
-void protocol_stop_waveform(void);
 
 #ifdef __cplusplus
 }
