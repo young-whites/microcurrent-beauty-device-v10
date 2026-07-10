@@ -45,6 +45,24 @@ static uint8_t s_cmd_cnt = 0;
 static uint8_t s_crc_h = 0;
 static uint8_t s_crc_l = 0;
 
+
+
+#define RT_UART2_SERIAL_CONFIG_DEFAULT           \
+{                                          \
+    BAUD_RATE_9600, /* 115200 bits/s */  \
+    DATA_BITS_8,      /* 8 databits */     \
+    STOP_BITS_1,      /* 1 stopbit */      \
+    PARITY_NONE,      /* No parity  */     \
+    BIT_ORDER_LSB,    /* LSB first sent */ \
+    NRZ_NORMAL,       /* Normal mode */    \
+    RT_SERIAL_RB_BUFSZ, /* Buffer size */  \
+    RT_SERIAL_FLOWCONTROL_NONE, /* Off flowcontrol */ \
+    0                                      \
+}
+
+
+
+
 /* ============================================================================
  *  Internal Helper: Ring Buffer Operations
  * ===========================================================================*/
@@ -364,7 +382,7 @@ static void protocol_decode_thread_entry(void *parameter)
  */
 static int uart1_hardware_init(void)
 {
-    struct serial_configure uart_cfg = RT_SERIAL_CONFIG_DEFAULT;
+    struct serial_configure uart_cfg = RT_UART2_SERIAL_CONFIG_DEFAULT;
 
     /* Find UART device (already registered by RT-Thread driver) */
     g_serial1 = rt_device_find(PROTO_UART_NAME);
