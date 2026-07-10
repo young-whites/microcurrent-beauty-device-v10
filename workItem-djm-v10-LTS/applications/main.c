@@ -46,8 +46,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART1_UART_Init();
-  MX_USART2_UART_Init();
+  /* UART1/UART2 already initialized by RT-Thread driver + protocol module */
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
