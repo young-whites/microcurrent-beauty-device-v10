@@ -41,8 +41,8 @@ extern "C"
 
 /*-------------------------- CLOCK CONFIG BEGIN --------------------------*/
 
-#define BSP_CLOCK_SOURCE                  ("HSI")
-#define BSP_CLOCK_SOURCE_FREQ_MHZ         ((int32_t)0)
+#define BSP_CLOCK_SOURCE                  ("HSE")
+#define BSP_CLOCK_SOURCE_FREQ_MHZ         ((int32_t)8)
 #define BSP_CLOCK_SYSTEM_FREQ_MHZ         ((int32_t)72)
 
 /*-------------------------- CLOCK CONFIG END --------------------------*/
@@ -65,6 +65,11 @@ extern "C"
  *                 such as     #define BSP_UART1_RX_USING_DMA
  *
  */
+
+
+#define BSP_USING_UART1
+#define BSP_UART1_TX_PIN       "PA9"
+#define BSP_UART1_RX_PIN       "PA10"
 
 #define BSP_USING_UART2
 #define BSP_UART2_TX_PIN       "PA2"
