@@ -92,7 +92,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+      rt_thread_mdelay(100);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
