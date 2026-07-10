@@ -15,6 +15,8 @@
 #include <rtdbg.h>
 
 #include "bsp_sys.h"
+#include "nnc6521.h"
+#include "nnc6521_waveform_config.h"
 
 
 /**
@@ -48,6 +50,14 @@ int main(void)
   MX_GPIO_Init();
   /* UART1/UART2 already initialized by RT-Thread driver + protocol module */
   MX_ADC1_Init();
+
+  /* Initialize NNC6521 waveform generator */
+  nnc6521_gpio_init();
+  nnc6521_init(NNC6521_CHIP_1);
+  nnc6521_init(NNC6521_CHIP_2);
+  nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0);
+  nnc6521_analog_enable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);
+  rt_kprintf("[MAIN] NNC6521 initialized (dual chip)\n");
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */

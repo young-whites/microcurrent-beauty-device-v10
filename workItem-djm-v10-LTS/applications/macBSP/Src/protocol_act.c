@@ -2,21 +2,70 @@
  * Protocol action handlers for DJM-V10
  * Command dispatch, waveform control, treatment start/stop
  *
- * LTS version: all handlers use state-only logic (no hardware deps).
- * Hardware control (NNC6521, heater, pump, PID) will be added later.
+ * Hardware mapping:
+ *   Handle A (0x0A) -> NNC6521_CHIP_1, CH0
+ *   Handle B (0x0B) -> NNC6521_CHIP_1, CH0 (shared with A)
+ *   Handle C (0x0C) -> NNC6521_CHIP_2, CH0
  */
 
 #include "protocol_act.h"
 #include "protocol.h"
+#include "nnc6521.h"
+#include "nnc6521_waveform_config.h"
 #include <string.h>
 
 /* ============================================================================
- *  Command Handlers (state-only, no hardware dependencies)
+ *  Hardware Helper: get NNC6521 chip ID from handle index
+ * ===========================================================================*/
+
+static uint8_t handle_to_chip(int handle_idx)
+{
+    /* Handle A(0), B(1) -> CHIP_1; Handle C(2) -> CHIP_2 */
+    return (handle_idx <= 1) ? NNC6521_CHIP_1 : NNC6521_CHIP_2;
+}
+
+/**
+ * @brief  Stop waveform output on the chip associated with the given handle.
+ */
+static void handle_stop_output(int handle_idx)
+{
+    uint8_t chip_id = handle_to_chip(handle_idx);
+    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
+    rt_kprintf("[PROTO] Waveform stopped on chip %d\n", chip_id);
+}
+
+/**
+ * @brief  Apply waveform output on the chip associated with the given handle.
+ *         Uses current device state (waveform_id, current_percent).
+ */
+static void handle_apply_output(int handle_idx)
+{
+    uint8_t chip_id = handle_to_chip(handle_idx);
+    uint8_t wf_id   = g_dev_state.waveform_id;
+    uint8_t percent  = g_dev_state.handle[handle_idx].current_percent;
+
+    if (percent == 0) {
+        nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
+        rt_kprintf("[PROTO] Current 0%%, output disabled on chip %d\n", chip_id);
+        return;
+    }
+
+    waveform_apply(chip_id, WAVEFORM_GEN_CH0, wf_id, percent);
+
+    uint32_t current_ma = waveform_calc_current(wf_id, percent);
+    rt_kprintf("[PROTO] Applied waveform #%u on chip %d: %u%% (%lu mA)\n",
+               wf_id, chip_id, percent, current_ma);
+}
+
+/* ============================================================================
+ *  Command Handlers
  * ===========================================================================*/
 
 /**
  * @brief  Handle 0x01: Switch active handle.
  *         para[0] = handle ID (0x0A/0x0B/0x0C)
+ *
+ *         Action: stop waveform, clear all params, switch handle.
  */
 static void handle_switch(const uint8_t *params, uint8_t param_len)
 {
@@ -32,18 +81,24 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Clear all handles' parameters (mutually exclusive) */
+    /* Stop waveform on current handle's chip */
+    int old_hi = protocol_handle_index(g_dev_state.current_handle);
+    if (old_hi >= 0 && g_dev_state.is_running) {
+        handle_stop_output(old_hi);
+    }
+
+    /* Clear all handles' parameters */
     for (int i = 0; i < 3; i++) {
         g_dev_state.handle[i].current_percent = 0;
         g_dev_state.handle[i].temperature = 0;
         g_dev_state.handle[i].pump_speed = 0;
     }
 
-    /* Set new active handle */
+    /* Switch handle */
     g_dev_state.current_handle = handle_id;
     g_dev_state.is_running = 0;
 
-    rt_kprintf("[PROTO] Switch to handle %c (0x%02X), params cleared\n",
+    rt_kprintf("[PROTO] Switch to handle %c (0x%02X), output stopped, params cleared\n",
                'A' + hi, handle_id);
 
     uint8_t ack_params[1] = { handle_id };
@@ -77,6 +132,11 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
     }
 
     g_dev_state.handle[hi].current_percent = percent;
+
+    /* If this is the active handle and treatment is running, update output */
+    if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
+        handle_apply_output(hi);
+    }
 
     rt_kprintf("[PROTO] Current set: handle %c = %u%%\n", 'A' + hi, percent);
 
@@ -162,9 +222,23 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    g_dev_state.is_running = action;
+    int hi = protocol_handle_index(g_dev_state.current_handle);
+    if (hi < 0) {
+        protocol_send_error(FUNC_START_PAUSE, ERR_BUSY);
+        return;
+    }
 
-    rt_kprintf("[PROTO] Treatment %s\n", action ? "started" : "paused");
+    if (action == 1) {
+        /* Start: apply waveform output */
+        g_dev_state.is_running = 1;
+        handle_apply_output(hi);
+        rt_kprintf("[PROTO] Treatment started\n");
+    } else {
+        /* Pause: stop waveform output */
+        handle_stop_output(hi);
+        g_dev_state.is_running = 0;
+        rt_kprintf("[PROTO] Treatment paused\n");
+    }
 
     uint8_t ack_params[1] = { action };
     protocol_send_ack(FUNC_START_PAUSE, ack_params, 1);
@@ -195,6 +269,12 @@ static void handle_aging_mode(const uint8_t *params, uint8_t param_len)
     if (action > 1) {
         protocol_send_error(FUNC_AGING_MODE, ERR_PARAM);
         return;
+    }
+
+    /* Stop output when entering aging mode */
+    if (action == 1 && g_dev_state.is_running) {
+        int hi = protocol_handle_index(g_dev_state.current_handle);
+        if (hi >= 0) handle_stop_output(hi);
     }
 
     g_dev_state.aging_mode = action;
@@ -236,6 +316,12 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.waveform_id = waveform_id;
 
+    /* If treatment is running, apply new waveform immediately */
+    int hi = protocol_handle_index(g_dev_state.current_handle);
+    if (hi >= 0 && g_dev_state.is_running) {
+        handle_apply_output(hi);
+    }
+
     rt_kprintf("[PROTO] Waveform selected: #%u\n", waveform_id);
 
     uint8_t ack_params[1] = { waveform_id };
@@ -246,13 +332,6 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
  *  Frame Dispatch (Main Command Router)
  * ===========================================================================*/
 
-/**
- * @brief  Dispatch a validated command frame to the appropriate handler.
- *         Called by protocol.c after CRC verification.
- *
- * @param  buf  Command buffer: [len] [addrH] [addrL] [type] [state] [func] [params...]
- * @param  cmd_len  Length field from the frame (value of buf[0]).
- */
 void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
 {
     uint8_t type  = buf[3];
