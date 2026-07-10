@@ -25,13 +25,11 @@ static void Timing_1ms(void)
 
 static void Timing_10ms(void)
 {
-#if 0
     /* Update NTC temperature sensor readings (ADC + filter) */
     ntc_sensor_update();
 
     /* Temperature PID control tick (internal 100ms period divider) */
     temp_pid_tick();
-#endif
 }
 
 

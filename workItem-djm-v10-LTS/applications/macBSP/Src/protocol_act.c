@@ -5,8 +5,19 @@
 
 #include "protocol_act.h"
 #include "protocol.h"
-#include "bsp_hard.h"
 #include <string.h>
+
+/* ============================================================================
+ *  Test Command: Read Firmware Version (0x08)
+ *  Minimal handler to verify UART communication is working.
+ * ===========================================================================*/
+
+static void handle_read_version(void)
+{
+    uint8_t ack_params[2] = { DEVICE_VERSION_H, DEVICE_VERSION_L };
+    protocol_send_ack(FUNC_READ_VERSION, ack_params, 2);
+    rt_kprintf("[PROTO] Version requested -> %d.%d\n", DEVICE_VERSION_H, DEVICE_VERSION_L);
+}
 
 /* ============================================================================
  *  Waveform Current Ranges (per waveform ID, in mA)
@@ -488,33 +499,11 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
                type, func, param_len);
 
     /* Route to handler based on type + func */
-    if (type == FRAME_TYPE_ACT) {
+    if (type == FRAME_TYPE_ACT || type == FRAME_TYPE_GET) {
         switch (func) {
-            case FUNC_HANDLE_SWITCH: handle_switch(&buf[6], param_len);      break;
-            case FUNC_CURRENT_CTRL:  handle_current_ctrl(&buf[6], param_len); break;
-            case FUNC_TEMP_CTRL:     handle_temp_ctrl(&buf[6], param_len);    break;
-            case FUNC_PUMP_CTRL:     handle_pump_ctrl(&buf[6], param_len);    break;
-            case FUNC_START_PAUSE:   handle_start_pause(&buf[6], param_len);  break;
-            case FUNC_OTA_UPGRADE:   handle_ota_upgrade(&buf[6], param_len);  break;
-            case FUNC_AGING_MODE:    handle_aging_mode(&buf[6], param_len);   break;
             case FUNC_READ_VERSION:  handle_read_version();                    break;
-            case FUNC_WAVEFORM_SEL:  handle_waveform_sel(&buf[6], param_len); break;
-            case FUNC_SHUTDOWN_REQ:
-                if (param_len >= 1 && buf[6] == 0x01) {
-                    power_shutdown_confirm();
-                }
-                break;
             default:
                 rt_kprintf("[PROTO] Unsupported function code: 0x%02X\n", func);
-                protocol_send_error(func, ERR_UNSUPPORTED);
-                break;
-        }
-    } else if (type == FRAME_TYPE_GET) {
-        /* Query commands: only version query is currently defined */
-        switch (func) {
-            case FUNC_READ_VERSION:  handle_read_version(); break;
-            default:
-                rt_kprintf("[PROTO] Unsupported query func: 0x%02X\n", func);
                 protocol_send_error(func, ERR_UNSUPPORTED);
                 break;
         }
