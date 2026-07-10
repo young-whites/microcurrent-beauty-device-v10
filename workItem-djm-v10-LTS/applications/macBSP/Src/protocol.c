@@ -360,7 +360,7 @@ static void protocol_decode_thread_entry(void *parameter)
         /* Read all available bytes from UART */
         while (rt_device_read(g_serial1, RT_NULL, &rx_byte, 1) == 1) {
             rx_count++;
-            rt_kprintf("[PROTO] RX[%d]: 0x%02X\n", rx_count, rx_byte);
+            // rt_kprintf("[PROTO] RX[%d]: 0x%02X\n", rx_count, rx_byte);
 
             /* Push into ring buffer */
             ring_push(rx_byte);
