@@ -35,6 +35,9 @@
 #include "bsp_key.h"
 #include "bsp_led.h"
 #include "bsp_beep.h"
+#include "nnc6521_reg.h"
+#include "nnc6521_waveform_config.h"
+#include "nnc6521.h"
 
 /* macSYS 头文件 */
 #include "bsp_typedef.h"
