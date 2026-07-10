@@ -378,9 +378,9 @@ static int uart1_hardware_init(void)
 
     rt_device_control(g_serial1, RT_DEVICE_CTRL_CONFIG, &uart_cfg);
 
-    /* Open device in read-only + interrupt RX mode */
+    /* Open device in read-write + interrupt RX mode */
     rt_err_t ret = rt_device_open(g_serial1,
-                                  RT_DEVICE_OFLAG_RDONLY | RT_DEVICE_FLAG_INT_RX);
+                                  RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_INT_RX);
     if (ret != RT_EOK) {
         rt_kprintf("[PROTO] Failed to open UART: %d\n", ret);
         return ret;
