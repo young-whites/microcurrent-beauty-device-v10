@@ -179,53 +179,42 @@ static const uint16_t waveform_freq_hz[] = {
  *  Command Handlers
  * ===========================================================================*/
 
-///**
-// * @brief  Handle 0x01: Switch active handle.
-// *         para[0] = handle ID (0x0A/0x0B/0x0C)
-// */
-//static void handle_switch(const uint8_t *params, uint8_t param_len)
-//{
-//    if (param_len < 1) {
-//        protocol_send_error(FUNC_HANDLE_SWITCH, ERR_PARAM);
-//        return;
-//    }
-//
-//    uint8_t handle_id = params[0];
-//    int hi = protocol_handle_index(handle_id);
-//    if (hi < 0) {
-//        protocol_send_error(FUNC_HANDLE_SWITCH, ERR_PARAM);
-//        return;
-//    }
-//
-//    /* Stop current waveform output */
-//    protocol_stop_waveform();
-//
-//    /* Disable all heating outputs */
-//    bsp_heater_large_set(0);
-//    bsp_heater_small_set(0);
-//
-//    /* Disable pump */
-//    bsp_pump_set(0);
-//
-//    /* Clear all handles' parameters (mutually exclusive) */
-//    for (int i = 0; i < 3; i++) {
-//        g_dev_state.handle[i].current_percent = 0;
-//        g_dev_state.handle[i].temperature = 0;
-//        g_dev_state.handle[i].pump_speed = 0;
-//        temp_pid_set_target(i, 0.0f);
-//    }
-//
-//    /* Set new active handle */
-//    g_dev_state.current_handle = handle_id;
-//    g_dev_state.is_running = 0;
-//
-//    rt_kprintf("[PROTO] Switch to handle %c (0x%02X), all other params cleared\n",
-//               'A' + hi, handle_id);
-//
-//    /* Send ACK with handle ID */
-//    uint8_t ack_params[1] = { handle_id };
-//    protocol_send_ack(FUNC_HANDLE_SWITCH, ack_params, 1);
-//}
+/**
+ * @brief  Handle 0x01: Switch active handle.
+ *         para[0] = handle ID (0x0A/0x0B/0x0C)
+ */
+static void handle_switch(const uint8_t *params, uint8_t param_len)
+{
+    if (param_len < 1) {
+        protocol_send_error(FUNC_HANDLE_SWITCH, ERR_PARAM);
+        return;
+    }
+
+    uint8_t handle_id = params[0];
+    int hi = protocol_handle_index(handle_id);
+    if (hi < 0) {
+        protocol_send_error(FUNC_HANDLE_SWITCH, ERR_PARAM);
+        return;
+    }
+
+    /* Clear all handles' parameters (mutually exclusive) */
+    for (int i = 0; i < 3; i++) {
+        g_dev_state.handle[i].current_percent = 0;
+        g_dev_state.handle[i].temperature = 0;
+        g_dev_state.handle[i].pump_speed = 0;
+    }
+
+    /* Set new active handle */
+    g_dev_state.current_handle = handle_id;
+    g_dev_state.is_running = 0;
+
+    rt_kprintf("[PROTO] Switch to handle %c (0x%02X), params cleared\n",
+               'A' + hi, handle_id);
+
+    /* Send ACK with handle ID */
+    uint8_t ack_params[1] = { handle_id };
+    protocol_send_ack(FUNC_HANDLE_SWITCH, ack_params, 1);
+}
 //
 ///**
 // * @brief  Handle 0x02: Current control.
@@ -501,6 +490,7 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
     /* Route to handler based on type + func */
     if (type == FRAME_TYPE_ACT || type == FRAME_TYPE_GET) {
         switch (func) {
+            case FUNC_HANDLE_SWITCH: handle_switch(&buf[6], param_len);      break;
             case FUNC_READ_VERSION:  handle_read_version();                    break;
             default:
                 rt_kprintf("[PROTO] Unsupported function code: 0x%02X\n", func);
