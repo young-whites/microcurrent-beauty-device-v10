@@ -384,7 +384,7 @@ static int uart1_hardware_init(void)
     /* Set RX indication callback */
     rt_device_set_rx_indicate(g_serial1, uart_rx_callback);
 
-    rt_kprintf("[PROTO] UART1 opened OK (9600, 8N1)\n");
+    rt_kprintf("[PROTO] UART1 opened OK (9600, 8N1), handle=0x%p\n", g_serial1);
     return RT_EOK;
 }
 
