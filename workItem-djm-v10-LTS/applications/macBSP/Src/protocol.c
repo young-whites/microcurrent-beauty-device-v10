@@ -360,25 +360,16 @@ static void protocol_decode_thread_entry(void *parameter)
  */
 static int uart1_hardware_init(void)
 {
-    struct serial_configure uart_cfg = RT_SERIAL_CONFIG_DEFAULT;
-
-    /* Find UART device */
+    /* Find UART device (already configured by RT-Thread driver + CubeMX) */
     g_serial1 = rt_device_find(PROTO_UART_NAME);
     if (g_serial1 == RT_NULL) {
         rt_kprintf("[PROTO] UART device '%s' not found!\n", PROTO_UART_NAME);
         return -RT_ERROR;
     }
 
-    /* Configure UART parameters */
-    uart_cfg.baud_rate = PROTO_UART_BAUD;
-    uart_cfg.data_bits = DATA_BITS_8;
-    uart_cfg.stop_bits = STOP_BITS_1;
-    uart_cfg.parity    = PARITY_NONE;
-    uart_cfg.bufsz     = 1024;
-
-    rt_device_control(g_serial1, RT_DEVICE_CTRL_CONFIG, &uart_cfg);
-
-    /* Open device in read-write + interrupt RX mode */
+    /* Open device in read-write + interrupt RX mode
+     * Do NOT reconfigure - UART1 is already set up by CubeMX (9600, 8N1)
+     */
     rt_err_t ret = rt_device_open(g_serial1,
                                   RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_INT_RX);
     if (ret != RT_EOK) {
@@ -389,7 +380,7 @@ static int uart1_hardware_init(void)
     /* Set RX indication callback */
     rt_device_set_rx_indicate(g_serial1, uart_rx_callback);
 
-    rt_kprintf("[PROTO] UART1 initialized: %d bps, 8N1\n", PROTO_UART_BAUD);
+    rt_kprintf("[PROTO] UART1 opened OK (9600, 8N1)\n");
     return RT_EOK;
 }
 
