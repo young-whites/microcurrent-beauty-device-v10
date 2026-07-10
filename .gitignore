@@ -54,3 +54,7 @@ dkms.conf
 # debug information files
 *.dwo
 workItem-djm-v10/.settings/language.settings.xml
+workItem-djm-v10-LTS/.cproject
+workItem-djm-v10-LTS/.settings/language.settings.xml
+workItem-djm-v10/.cproject
+workItem-djm-v10/.project
