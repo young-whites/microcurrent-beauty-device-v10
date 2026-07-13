@@ -144,19 +144,18 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 
 /**
  * @brief  Handle 0x02: Current control.
- *         para[0] = current high byte (mA)
- *         para[1] = current low byte (mA)
- *         para[2] = target handle ID (0x0A/0x0B/0x0C)
+ *         para[0] = current value (mA, 0~100)
+ *         para[1] = target handle ID (0x0A/0x0B/0x0C)
  */
 static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
 {
-    if (param_len < 3) {
+    if (param_len < 2) {
         protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
         return;
     }
 
-    uint16_t current_ma = (params[0] << 8) | params[1];  /* mA value from upper machine */
-    uint8_t handle_id = params[2];
+    uint16_t current_ma = params[0];  /* mA value from upper machine (single byte, 0~100) */
+    uint8_t handle_id = params[1];
 
     int hi = protocol_handle_index(handle_id);
     if (hi < 0) {
@@ -192,8 +191,8 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
 
     rt_kprintf("[PROTO] Current set: handle %c = %u mA (%u%%)\n", 'A' + hi, current_ma, percent);
 
-    uint8_t ack_params[3] = { params[0], params[1], handle_id };
-    protocol_send_ack(FUNC_CURRENT_CTRL, ack_params, 3);
+    uint8_t ack_params[2] = { (uint8_t)current_ma, handle_id };
+    protocol_send_ack(FUNC_CURRENT_CTRL, ack_params, 2);
 }
 
 /**
