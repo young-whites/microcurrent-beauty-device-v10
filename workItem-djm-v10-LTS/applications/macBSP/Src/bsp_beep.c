@@ -77,6 +77,11 @@ void BEEP_Blink(int8_t cry, int8_t mute, int8_t repeat)
 void BEEP_DrvScan(void)
 {
     if(beepCry){                                    // Beep active
+        /* Turn OFF at duty boundary (must check before cycle end) */
+        if(beepClk >= beepDty && beepClk < beepCyc){
+            macBEEP_OFF();
+        }
+
         if(++beepClk >= beepCyc){                   // Sub-cycle ended
             beepClk=0;
             if(++beepCnt >= (beepCry+beepMut)){     // Mid-cycle ended
@@ -86,9 +91,10 @@ void BEEP_DrvScan(void)
                     if(beepRep < 100)   beepCry=0;  // Repeat count reached, stop beeping
                 }
             }
-        }else if(beepClk >= beepDty){               // Second half: off
-            macBEEP_OFF();
-        }else if(beepCnt < beepCry){                // First half (non-pause): on
+        }
+
+        /* Turn ON during active beep period (first half) */
+        if(beepClk < beepDty && beepCnt < beepCry){
             macBEEP_ON();
         }
     }
