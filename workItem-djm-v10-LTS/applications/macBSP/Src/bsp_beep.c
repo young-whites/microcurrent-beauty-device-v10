@@ -88,7 +88,11 @@ void BEEP_DrvScan(void)
                 beepCnt=0;
                 if(++beepCct >= beepRep){           // Major-cycle ended
                     beepCct=0;
-                    if(beepRep < 100)   beepCry=0;  // Repeat count reached, stop beeping
+                    if(beepRep < 100) {
+                        beepCry=0;  // Repeat count reached, stop beeping
+                        macBEEP_OFF();  // Ensure buzzer is off
+                        rt_kprintf("[BEEP] Done (cry=%d,rep=%d)\n", beepCry, beepRep);
+                    }
                 }
             }
         }
