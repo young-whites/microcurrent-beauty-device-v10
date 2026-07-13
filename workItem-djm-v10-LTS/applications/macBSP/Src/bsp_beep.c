@@ -135,7 +135,7 @@ void Beep_Init ( void )
   * @brief  Beep thread entry - scans every 1ms
   */
 #define BEEP_THREAD_PRIORITY    5
-#define BEEP_THREAD_STACK_SIZE  256
+#define BEEP_THREAD_STACK_SIZE  512
 
 static void beep_thread_entry(void *parameter)
 {
