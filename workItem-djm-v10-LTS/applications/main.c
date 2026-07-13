@@ -55,9 +55,10 @@ int main(void)
   nnc6521_gpio_init();
   nnc6521_init(NNC6521_CHIP_1);
   nnc6521_init(NNC6521_CHIP_2);
-  nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0);
-  nnc6521_analog_enable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);
-  rt_kprintf("[MAIN] NNC6521 initialized (dual chip)\n");
+  nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0);  /* Handle A */
+  nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1);  /* Handle B */
+  nnc6521_analog_enable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);  /* Handle C */
+  rt_kprintf("[MAIN] NNC6521 initialized (dual chip, 3 channels)\n");
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
