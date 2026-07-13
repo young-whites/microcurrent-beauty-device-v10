@@ -10,6 +10,7 @@
 
 #include "protocol_act.h"
 #include "protocol.h"
+#include "bsp_hard.h"
 #include "nnc6521.h"
 #include "nnc6521_waveform_config.h"
 #include <string.h>
@@ -26,12 +27,21 @@ static uint8_t handle_to_chip(int handle_idx)
 
 /**
  * @brief  Stop waveform output on the chip associated with the given handle.
+ *         Also disables the corresponding 54V boost converter.
  */
 static void handle_stop_output(int handle_idx)
 {
     uint8_t chip_id = handle_to_chip(handle_idx);
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
-    rt_kprintf("[PROTO] Waveform stopped on chip %d\n", chip_id);
+
+    /* Disable 54V boost for the handle's chip */
+    if (handle_idx <= 1) {
+        bsp_boost_1_enable(0);  /* Handle A/B -> CHIP_1 */
+    } else {
+        bsp_boost_2_enable(0);  /* Handle C -> CHIP_2 */
+    }
+
+    rt_kprintf("[PROTO] Waveform stopped, boost disabled on chip %d\n", chip_id);
 }
 
 /**
@@ -86,6 +96,20 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     if (old_hi >= 0 && g_dev_state.is_running) {
         handle_stop_output(old_hi);
     }
+
+    /* Disable boost for the old handle */
+    if (old_hi >= 0) {
+        if (old_hi <= 1) {
+            bsp_boost_1_enable(0);  /* Handle A/B -> CHIP_1 */
+        } else {
+            bsp_boost_2_enable(0);  /* Handle C -> CHIP_2 */
+        }
+    }
+
+    /* Turn off all heaters and pump */
+    bsp_heater_large_set(0);
+    bsp_heater_small_set(0);
+    bsp_pump_set(0);
 
     /* Clear all handles' parameters */
     for (int i = 0; i < 3; i++) {
@@ -172,7 +196,15 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.handle[hi].temperature = temperature;
 
-    rt_kprintf("[PROTO] Temp set: handle %c = %u C\n", 'A' + hi, temperature);
+    /* Control heater hardware (on/off only, no PID) */
+    if (hi == 0) {
+        bsp_heater_large_set(temperature > 0 ? 1 : 0);  /* Handle A -> large heater */
+    } else {
+        bsp_heater_small_set(temperature > 0 ? 1 : 0);  /* Handle B -> small heater */
+    }
+
+    rt_kprintf("[PROTO] Temp set: handle %c = %u C, heater %s\n",
+               'A' + hi, temperature, temperature > 0 ? "ON" : "OFF");
 
     uint8_t ack_params[2] = { temperature, handle_id };
     protocol_send_ack(FUNC_TEMP_CTRL, ack_params, 2);
@@ -198,7 +230,11 @@ static void handle_pump_ctrl(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.handle[2].pump_speed = speed;
 
-    rt_kprintf("[PROTO] Pump speed set: %u%%\n", speed);
+    /* Control pump hardware (on/off only) */
+    bsp_pump_set(speed > 0 ? 1 : 0);
+
+    rt_kprintf("[PROTO] Pump speed set: %u%%, pump %s\n", speed,
+               speed > 0 ? "ON" : "OFF");
 
     uint8_t ack_params[1] = { speed };
     protocol_send_ack(FUNC_PUMP_CTRL, ack_params, 1);
@@ -229,15 +265,22 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
     }
 
     if (action == 1) {
-        /* Start: apply waveform output */
+        /* Start: enable 54V boost first, wait for stabilization */
+        if (hi <= 1) {
+            bsp_boost_1_enable(1);  /* Handle A/B -> CHIP_1 */
+        } else {
+            bsp_boost_2_enable(1);  /* Handle C -> CHIP_2 */
+        }
+        rt_thread_mdelay(10);  /* Soft-start delay for boost stabilization */
+
         g_dev_state.is_running = 1;
         handle_apply_output(hi);
-        rt_kprintf("[PROTO] Treatment started\n");
+        rt_kprintf("[PROTO] Treatment started (boost enabled)\n");
     } else {
-        /* Pause: stop waveform output */
+        /* Pause: stop waveform output, then disable boost */
         handle_stop_output(hi);
         g_dev_state.is_running = 0;
-        rt_kprintf("[PROTO] Treatment paused\n");
+        rt_kprintf("[PROTO] Treatment paused (boost disabled)\n");
     }
 
     uint8_t ack_params[1] = { action };
@@ -353,14 +396,14 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
 
     if (type == FRAME_TYPE_ACT || type == FRAME_TYPE_GET) {
         switch (func) {
-            case FUNC_HANDLE_SWITCH: handle_switch(&buf[6], param_len);      break;
+            case FUNC_HANDLE_SWITCH: handle_switch(&buf[6], param_len);       break;
             case FUNC_CURRENT_CTRL:  handle_current_ctrl(&buf[6], param_len); break;
             case FUNC_TEMP_CTRL:     handle_temp_ctrl(&buf[6], param_len);    break;
             case FUNC_PUMP_CTRL:     handle_pump_ctrl(&buf[6], param_len);    break;
             case FUNC_START_PAUSE:   handle_start_pause(&buf[6], param_len);  break;
             case FUNC_OTA_UPGRADE:   handle_ota_upgrade(&buf[6], param_len);  break;
             case FUNC_AGING_MODE:    handle_aging_mode(&buf[6], param_len);   break;
-            case FUNC_READ_VERSION:  handle_read_version();                    break;
+            case FUNC_READ_VERSION:  handle_read_version();                   break;
             case FUNC_WAVEFORM_SEL:  handle_waveform_sel(&buf[6], param_len); break;
             default:
                 rt_kprintf("[PROTO] Unsupported function code: 0x%02X\n", func);
