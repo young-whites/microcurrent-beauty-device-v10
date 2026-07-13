@@ -46,6 +46,9 @@ void BEEP_On(void)
 *****************************************************************************/
 void BEEP_SetCycleDuty(int16_t Cycle, int16_t Duty)
 {
+    if(Cycle <= 0) Cycle = 1;       /* Minimum cycle 1ms */
+    if(Duty <= 0) Duty = 1;         /* Minimum duty 1ms */
+    if(Duty > Cycle) Duty = Cycle;  /* Duty cannot exceed cycle */
     beepCyc=Cycle;
     beepDty=Duty;
     beepClk=0;
@@ -62,11 +65,17 @@ void BEEP_SetCycleDuty(int16_t Cycle, int16_t Duty)
 *****************************************************************************/
 void BEEP_Blink(int8_t cry, int8_t mute, int8_t repeat)
 {
+    if(cry <= 0) {                  /* No beep requested */
+        macBEEP_OFF();
+        return;
+    }
+    if(repeat < 0) repeat = 0;     /* Repeat 0 = one-shot */
     beepCry=cry;
     beepMut=mute;
     beepRep=repeat;
     beepCnt=0;
     beepCct=0;
+    beepClk=0;
 }
 
 
@@ -89,9 +98,9 @@ void BEEP_DrvScan(void)
                 if(++beepCct >= beepRep){           // Major-cycle ended
                     beepCct=0;
                     if(beepRep < 100) {
+                        rt_kprintf("[BEEP] Done (rep=%d)\n", beepRep);
                         beepCry=0;  // Repeat count reached, stop beeping
                         macBEEP_OFF();  // Ensure buzzer is off
-                        rt_kprintf("[BEEP] Done (cry=%d,rep=%d)\n", beepCry, beepRep);
                     }
                 }
             }
