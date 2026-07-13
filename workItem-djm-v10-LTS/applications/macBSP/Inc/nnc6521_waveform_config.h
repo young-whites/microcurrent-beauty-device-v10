@@ -121,6 +121,22 @@ uint32_t waveform_calc_current(uint8_t waveform_id, uint8_t percent);
  */
 const waveform_config_t* waveform_get_config(uint8_t waveform_id);
 
+/**
+ * @brief Update waveform amplitude only (no timing reconfiguration)
+ *
+ * More efficient than waveform_apply() when only the current percentage
+ * changes during treatment. Updates waveform data or CI register directly.
+ *
+ * @param[in] chip_id     Chip ID
+ * @param[in] channel     Waveform channel
+ * @param[in] waveform_id Waveform ID (1~9)
+ * @param[in] percent     New current percentage (0~100)
+ *
+ * @note Waveform must already be configured via waveform_apply() first.
+ */
+void waveform_update_amplitude(uint8_t chip_id, uint8_t channel,
+                               uint8_t waveform_id, uint8_t percent);
+
 #ifdef __cplusplus
 }
 #endif

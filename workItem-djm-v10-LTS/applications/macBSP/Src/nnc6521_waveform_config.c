@@ -387,3 +387,60 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
             break;
     }
 }
+
+/* ============================================================================ *  Public API: Update waveform amplitude only (no timing reconfiguration)
+ * ===========================================================================*/
+
+/**
+ * @brief Update waveform amplitude without reconfiguring timing parameters.
+ *        More efficient than waveform_apply() when only the current changes.
+ *
+ * For CUSTOM_SPI waveforms: calls nnc6521_customized_amplitude() to rewrite
+ *   the waveform data array with new amplitude.
+ * For PRELOADED waveforms: updates the CI (current index) register directly.
+ * For AMPLITUDE_MOD waveforms: falls back to full waveform_apply().
+ *
+ * @param[in] chip_id     Chip ID (NNC6521_CHIP_1 or NNC6521_CHIP_2)
+ * @param[in] channel     Waveform channel (WAVEFORM_GEN_CH0 or WAVEFORM_GEN_CH1)
+ * @param[in] waveform_id Waveform ID (1~WAVEFORM_COUNT)
+ * @param[in] percent     New current percentage (0~100)
+ *
+ * @note The waveform must already be configured via waveform_apply() first.
+ *       This function only updates amplitude, not timing or waveform type.
+ */
+void waveform_update_amplitude(uint8_t chip_id, uint8_t channel,
+                               uint8_t waveform_id, uint8_t percent)
+{
+    if (waveform_id < 1 || waveform_id > WAVEFORM_COUNT) return;
+
+    const waveform_config_t *cfg = &g_waveform_configs[waveform_id - 1];
+    uint32_t actual_current = waveform_calc_current(waveform_id, percent);
+
+    switch (cfg->gen_method) {
+        case GEN_METHOD_PRELOADED:
+        {
+            /* Update CI register directly (single register write) */
+            uint8_t ci = 4;
+            int addr = WG_REG_ADDR(channel, WG_DRIVE_REG_CTRL2_OFFSET);
+            nnc6521_write_wave_reg(chip_id, addr, ci);
+            break;
+        }
+
+        case GEN_METHOD_CUSTOM_SPI:
+            if (cfg->waveform_data != NULL) {
+                nnc6521_customized_amplitude(chip_id, channel,
+                                             cfg->point_num,
+                                             cfg->waveform_data,
+                                             actual_current * 1000);
+            }
+            break;
+
+        case GEN_METHOD_AMPLITUDE_MOD:
+            /* AM mode needs full reconfigure (no amplitude-only API) */
+            waveform_apply(chip_id, channel, waveform_id, percent);
+            break;
+
+        default:
+            break;
+    }
+}

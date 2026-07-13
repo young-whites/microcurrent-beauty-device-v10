@@ -14,6 +14,7 @@
 #include "bsp_typedef.h"
 #include "nnc6521.h"
 #include "nnc6521_waveform_config.h"
+#include "nnc6521_waveform_config.h"
 #include <string.h>
 
 /* ============================================================================
@@ -167,9 +168,15 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.handle[hi].current_percent = percent;
 
-    /* If this is the active handle and treatment is running, update output */
+    /* If this is the active handle and treatment is running,
+     * update amplitude only (no full waveform reconfigure) */
     if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
-        handle_apply_output(hi);
+        uint8_t chip_id = handle_to_chip(hi);
+        uint8_t channel = handle_to_channel(hi);
+        waveform_update_amplitude(chip_id, channel,
+                                  g_dev_state.waveform_id, percent);
+        rt_kprintf("[PROTO] Amplitude updated: chip %d ch %d = %u%%\n",
+                   chip_id, channel, percent);
     }
 
     rt_kprintf("[PROTO] Current set: handle %c = %u%%\n", 'A' + hi, percent);
