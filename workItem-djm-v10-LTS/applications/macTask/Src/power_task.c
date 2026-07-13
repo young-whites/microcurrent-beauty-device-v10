@@ -64,16 +64,16 @@ static void power_boot_sequence(void)
 {
     rt_kprintf("[PWR] Boot sequence started\n");
 
-    /* Step 1: Turn on system LED (PA6) */
-    LED_On(LED_Name_Start);
-
-    /* Step 2: Beep 1s (non-blocking, driven by beep timer) */
-    BEEP_SetCycleDuty(BEEP_DURATION_MS, BEEP_DURATION_MS);
-    BEEP_Blink(1, 0, 0);
-
-    /* Step 3: Enable 12V system power (PA4) */
+    /* Step 1: Enable 12V system power first (board needs power) */
     bsp_power_enable(1);
     rt_kprintf("[PWR] 12V power enabled\n");
+
+    /* Step 2: Turn on system LED (PA6) */
+    LED_On(LED_Name_Start);
+
+    /* Step 3: Beep 1s (non-blocking, driven by beep timer) */
+    BEEP_SetCycleDuty(BEEP_DURATION_MS, BEEP_DURATION_MS);
+    BEEP_Blink(1, 0, 0);
 
     /* Note: 54V boost is NOT enabled at boot - only when treatment output is needed */
 
