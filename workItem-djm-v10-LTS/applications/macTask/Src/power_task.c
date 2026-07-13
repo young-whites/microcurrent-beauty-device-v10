@@ -108,16 +108,16 @@ static void power_do_shutdown(void)
     bsp_boost_1_enable(0);
     bsp_boost_2_enable(0);
 
-    /* Disable 12V power */
-    bsp_power_enable(0);
-
-    /* Beep 1s (non-blocking, wait for completion) */
+    /* Beep 1s (before power cut, needs 12V) */
     BEEP_SetCycleDuty(BEEP_DURATION_MS, BEEP_DURATION_MS);
     BEEP_Blink(1, 0, 0);
     rt_thread_mdelay(BEEP_DURATION_MS);
 
-    /* Turn off LED */
+    /* Turn off LED (before power cut) */
     LED_Off(LED_Name_Start);
+
+    /* Disable 12V power (last) */
+    bsp_power_enable(0);
 
     s_power_state = POWER_STATE_OFF;
     rt_kprintf("[PWR] System OFF\n");
