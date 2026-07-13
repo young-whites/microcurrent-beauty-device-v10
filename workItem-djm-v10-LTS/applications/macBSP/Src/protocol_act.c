@@ -102,6 +102,14 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         return;
     }
 
+    /* Same handle - skip switch, just ACK */
+    if (handle_id == g_dev_state.current_handle) {
+        rt_kprintf("[PROTO] Already on handle %c, skip\n", 'A' + hi);
+        uint8_t ack_params[1] = { handle_id };
+        protocol_send_ack(FUNC_HANDLE_SWITCH, ack_params, 1);
+        return;
+    }
+
     /* Stop waveform on current handle's chip */
     int old_hi = protocol_handle_index(g_dev_state.current_handle);
     if (old_hi >= 0 && g_dev_state.is_running) {
