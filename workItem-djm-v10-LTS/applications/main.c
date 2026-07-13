@@ -17,6 +17,7 @@
 #include "bsp_sys.h"
 #include "nnc6521.h"
 #include "nnc6521_waveform_config.h"
+#include "power_task.h"
 
 
 /**
@@ -59,6 +60,10 @@ int main(void)
   nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1);  /* Handle B */
   nnc6521_analog_enable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);  /* Handle C */
   rt_kprintf("[MAIN] NNC6521 initialized (dual chip, 3 channels)\n");
+
+  /* Initialize power management task (must be after NNC6521 init) */
+  power_task_init();
+
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
