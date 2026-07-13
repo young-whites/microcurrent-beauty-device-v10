@@ -71,9 +71,10 @@ static void power_boot_sequence(void)
     /* Step 2: Turn on system LED (PA6) */
     LED_On(LED_Name_Start);
 
-    /* Step 3: Beep 1s (non-blocking, driven by beep timer) */
-    BEEP_SetCycleDuty(BEEP_DURATION_MS, BEEP_DURATION_MS);
-    BEEP_Blink(1, 0, 1);  /* cry=1, mute=0, repeat=1 */
+    /* Step 3: Beep 1s (blocking) */
+    BEEP_On();
+    rt_thread_mdelay(BEEP_DURATION_MS);
+    BEEP_Off();
 
     /* Note: 54V boost is NOT enabled at boot - only when treatment output is needed */
 
@@ -108,9 +109,10 @@ static void power_do_shutdown(void)
     bsp_boost_1_enable(0);
     bsp_boost_2_enable(0);
 
-    /* Beep 1s (before power cut, needs 12V) */
-    BEEP_SetCycleDuty(BEEP_DURATION_MS, BEEP_DURATION_MS);
-    BEEP_Blink(1, 0, 1);  /* cry=1, mute=0, repeat=1 */
+    /* Beep 1s (blocking, before power cut) */
+    BEEP_On();
+    rt_thread_mdelay(BEEP_DURATION_MS);
+    BEEP_Off();
     rt_thread_mdelay(BEEP_DURATION_MS);
 
     /* Turn off LED (before power cut) */
