@@ -132,38 +132,41 @@ void Beep_Init ( void )
 
 
 /**
-  * @brief  beepTimer Callback Function
-  * @retval void
+  * @brief  Beep thread entry - scans every 1ms
   */
-static void beepTimer_callback(void* parameter)
+#define BEEP_THREAD_PRIORITY    5
+#define BEEP_THREAD_STACK_SIZE  256
+
+static void beep_thread_entry(void *parameter)
 {
-    BEEP_DrvScan();
+    Beep_Init();
+    macBEEP_OFF();
+    rt_kprintf("[BEEP] Beep thread started\n");
+
+    while (1) {
+        BEEP_DrvScan();
+        rt_thread_mdelay(1);
+    }
 }
-
-
 
 /**
-  * @brief  beepTimer initialize
+  * @brief  Beep thread initialize
   * @retval int
   */
-int beepTimer_Init(void)
+int beep_thread_Init(void)
 {
-    static rt_timer_t   beepTimer = RT_NULL;
-    /* Create beep software timer */
-    beepTimer = rt_timer_create("beepTimer_callback", beepTimer_callback, RT_NULL, 1, RT_TIMER_FLAG_PERIODIC | RT_TIMER_FLAG_SOFT_TIMER);
-
-    /* Start beep software timer */
-    if(beepTimer != RT_NULL )
-    {
-        rt_kprintf("PRINTF:%d. Beep initialize succeed!\r\n",Record.kprintf_cnt++);
-        Beep_Init();
-        macBEEP_OFF();
-        rt_timer_start(beepTimer);
+    rt_thread_t tid = rt_thread_create("beep", beep_thread_entry, RT_NULL,
+                                       BEEP_THREAD_STACK_SIZE,
+                                       BEEP_THREAD_PRIORITY, 10);
+    if (tid != RT_NULL) {
+        rt_thread_startup(tid);
+        rt_kprintf("[BEEP] Beep thread initialized\n");
+    } else {
+        rt_kprintf("[BEEP] Failed to create beep thread\n");
     }
-
     return RT_EOK;
 }
-INIT_APP_EXPORT(beepTimer_Init);
+INIT_APP_EXPORT(beep_thread_Init);
 
 
 
