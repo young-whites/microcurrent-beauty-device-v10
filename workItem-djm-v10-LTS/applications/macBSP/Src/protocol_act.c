@@ -11,6 +11,7 @@
 #include "protocol_act.h"
 #include "protocol.h"
 #include "bsp_hard.h"
+#include "bsp_typedef.h"
 #include "nnc6521.h"
 #include "nnc6521_waveform_config.h"
 #include <string.h>
@@ -405,6 +406,20 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
             case FUNC_AGING_MODE:    handle_aging_mode(&buf[6], param_len);   break;
             case FUNC_READ_VERSION:  handle_read_version();                   break;
             case FUNC_WAVEFORM_SEL:  handle_waveform_sel(&buf[6], param_len); break;
+            case FUNC_SHUTDOWN_REQ:
+            {
+                uint8_t para0 = (param_len >= 1) ? buf[6] : 0x00;
+                if (para0 == 0x01) {
+                    Flag.power_shutdown_confirmed = 1;
+                    rt_kprintf("[PROTO] Shutdown confirmed by host\n");
+                } else {
+                    Flag.power_shutdown_denied = 1;
+                    rt_kprintf("[PROTO] Shutdown denied by host\n");
+                }
+                /* Send ACK back to host */
+                uint8_t ack_params[1] = { para0 };
+                protocol_send_ack(FUNC_SHUTDOWN_REQ, ack_params, 1);
+            } break;
             default:
                 rt_kprintf("[PROTO] Unsupported function code: 0x%02X\n", func);
                 protocol_send_error(func, ERR_UNSUPPORTED);

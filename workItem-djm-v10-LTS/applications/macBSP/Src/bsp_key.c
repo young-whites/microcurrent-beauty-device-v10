@@ -1,4 +1,3 @@
-
 /*
  * bsp_key.c
  *
@@ -6,6 +5,7 @@
  *      Author: zphu
  */
 #include "bsp_key.h"
+#include "power_task.h"
 
 /*---------------------------------------------------------------------------------------------------------------*/
 /* Key scan driver (portable)                                                                                                                                                      */
@@ -18,8 +18,6 @@ extern uint8_t  KEY_GetNumber(void);
 //----------------------------------------------------------------------------
 #define		KEY_VAL_BUF_SIZE			(KEY_MAX+3)	// Key value buffer size
 #define		KEY_SCAN_FILTER_TIMES		(5)			// Debounce filter count (filter time = count * scan period; e.g. 10ms scan period => 50ms debounce)
-#define		KEY_SCAN_LONG_PRESS_2S		(200)		// Long press 2s count (time = count * scan period; e.g. 10ms => 2s)
-#define		KEY_SCAN_LONG_PRESS_4S		(400)		// Long press 4s count (time = count * scan period; e.g. 10ms => 4s)
 //----------------------------------------------------------------------------
 #define		KEY_Val_First				(0x01)		// First key value in port_key.c, other keys increment sequentially
 //----------------------------------------------------------------------------
@@ -73,12 +71,11 @@ uint8_t KEY_Read(void)
 
 /*****************************************************************************
 * @brief  Key scan driver - called periodically (10ms scan period).
-*         Debounce: 50ms. Long press: 2s / 4s.
+*         Debounce: 50ms. Short press only (no long press detection).
 *****************************************************************************/
 void KEY_DrvScan(void)
 {
 	static	uint8_t	    step[KEY_MAX] = { 0 };						// Scan state
-	static	uint16_t	holdingCnt[KEY_MAX] = { 0 };				// Hold timer
 	static	uint8_t	    filterCnt[KEY_MAX] = { 0 };					// Filter timer
 	static	uint8_t	    pressLast[KEY_MAX] = { 0 };					// Previous press state
 	uint8_t	i, num, pressCurr;										// Current press state
@@ -88,44 +85,32 @@ void KEY_DrvScan(void)
 	for (i = 0; i < num; i++) {										// Scan each key
 		pressCurr = KEY_GetState(KEY_Val_First + i);				// Get current press state
 		switch (step[i]) {											// States: stable and filter
-		case 0:														// Stable state (held or released)
+		case 0:														// Stable state (released)
 			if (pressCurr != pressLast[i]) {						// State changed
 				pressLast[i] = pressCurr;							// Update last state
 				filterCnt[i] = 0;									// Start debounce timer
 				step[i] = 1;										// Enter filter state
 			}
-			else if (pressCurr) {									// Key held down
-				if (holdingCnt[i] != 0xffff) {						// Prevent counter wrap-around
-					holdingCnt[i]++;
-					if (holdingCnt[i] == KEY_SCAN_LONG_PRESS_2S) {		// 2s long press reached
-						KEY_Write((KEY_Val_First + i) + KEY_Evt_Long2S);
-					}
-					if (holdingCnt[i] == KEY_SCAN_LONG_PRESS_4S) {		// 4s long press reached
-						KEY_Write((KEY_Val_First + i) + KEY_Evt_Long4S);
-					}
-				}
-			}
 			break;
-		case 1:															// Filter state (debounce)
+		case 1:														// Filter state (debounce)
 			if (pressCurr == pressLast[i]) {
-				if (++filterCnt[i] >= KEY_SCAN_FILTER_TIMES) {			// N consecutive same states = confirmed
-					if (pressCurr) {									// Confirmed pressed
+				if (++filterCnt[i] >= KEY_SCAN_FILTER_TIMES) {		// N consecutive same states = confirmed
+					if (pressCurr) {								// Confirmed pressed
 						KEY_Write((KEY_Val_First + i) + KEY_Evt_Press);
-						holdingCnt[i] = 0;								// Start hold timer
 					}
-					else {												// Confirmed released
+					else {											// Confirmed released
 						KEY_Write((KEY_Val_First + i) + KEY_Evt_Release);
 					}
-					step[i] = 0;										// Return to stable state
+					step[i] = 0;									// Return to stable state
 				}
 			}
-			else {														// State changed during debounce = noise
-				pressLast[i] = pressCurr;								// Update last state
-				step[i] = 0;											// Return to stable state
+			else {													// State changed during debounce = noise
+				pressLast[i] = pressCurr;							// Update last state
+				step[i] = 0;										// Return to stable state
 			}
 			break;
 		default:
-			step[i] = 0;												// Invalid state, reset
+			step[i] = 0;											// Invalid state, reset
 			break;
 		}
 	}
@@ -168,9 +153,8 @@ uint8_t KEY_GetNumber(void)
 /*****************************************************************************
 * @brief  Key event handler - processes key events from buffer.
 *         KeyA (power button):
-*           - Press: set Flag.power_boot_request (when system OFF)
-*           - Long press 2s: set Flag.power_shutdown_request (when system ON)
-*           - Long press 4s: set Flag.power_force_shutdown (when system ON)
+*           - Short press when OFF: set Flag.power_boot_request
+*           - Short press when ON: set Flag.power_shutdown_request
 *         Flag bits are polled by power_task thread.
 *****************************************************************************/
 void KEY_Scan(void)
@@ -187,16 +171,13 @@ void KEY_Scan(void)
 				switch (event)
 				{
 					case KEY_Evt_Press:
-						Flag.power_boot_request = 1;
-						rt_kprintf("[KEY] Power button pressed, boot requested\n");
-						break;
-					case KEY_Evt_Long2S:
-						Flag.power_shutdown_request = 1;
-						rt_kprintf("[KEY] Long press 2s, shutdown requested\n");
-						break;
-					case KEY_Evt_Long4S:
-						Flag.power_force_shutdown = 1;
-						rt_kprintf("[KEY] Long press 4s, forced shutdown\n");
+						if (power_get_state() == POWER_STATE_OFF) {
+							Flag.power_boot_request = 1;
+							rt_kprintf("[KEY] Power button pressed, boot requested\n");
+						} else {
+							Flag.power_shutdown_request = 1;
+							rt_kprintf("[KEY] Power button pressed, shutdown requested\n");
+						}
 						break;
 				}
 			} break;

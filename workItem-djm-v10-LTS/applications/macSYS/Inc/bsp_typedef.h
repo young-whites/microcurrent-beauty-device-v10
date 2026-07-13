@@ -36,10 +36,10 @@ typedef struct {
     rt_uint8_t   air_rate_set;      // 潮气达标率设置标志(0：未处于设置状态   1：处于设置状态)
 
     /* Power management flags (set by KEY_Scan, read by power_task) */
-    volatile rt_uint8_t   power_boot_request;       // 1 = boot requested by key press
-    volatile rt_uint8_t   power_shutdown_request;   // 1 = graceful shutdown requested (long press 2s)
-    volatile rt_uint8_t   power_force_shutdown;     // 1 = forced shutdown requested (long press 4s)
-    volatile rt_uint8_t   power_shutdown_confirmed; // 1 = host ACK received for shutdown
+    volatile rt_uint8_t   power_boot_request;       // 1 = boot requested by short press
+    volatile rt_uint8_t   power_shutdown_request;   // 1 = shutdown requested by short press
+    volatile rt_uint8_t   power_shutdown_confirmed; // 1 = host confirmed shutdown
+    volatile rt_uint8_t   power_shutdown_denied;    // 1 = host denied shutdown request
 }FlagStruct;
 extern FlagStruct Flag;
 

@@ -11,6 +11,7 @@ typedef enum {
     POWER_STATE_OFF = 0,
     POWER_STATE_BOOTING,
     POWER_STATE_ON,
+    POWER_STATE_WAIT_CONFIRM,
     POWER_STATE_SHUTTING_DOWN
 } power_state_t;
 

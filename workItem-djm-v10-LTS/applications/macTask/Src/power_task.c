@@ -3,7 +3,7 @@
  * Handles boot/shutdown sequences with upper machine confirmation.
  *
  * Key events are handled by KEY_Scan() in bsp_key.c, which sets
- * Flag.power_boot_request / Flag.power_shutdown_request / Flag.power_force_shutdown.
+ * Flag.power_boot_request / Flag.power_shutdown_request.
  * This thread monitors s_power_state and executes the actual sequences.
  */
 #include "power_task.h"
@@ -12,6 +12,7 @@
 #include "bsp_beep.h"
 #include "bsp_typedef.h"
 #include "protocol.h"
+#include "protocol_act.h"
 
 #define DBG_TAG "pwr"
 #define DBG_LVL DBG_LOG
@@ -26,7 +27,7 @@
 #define POWER_THREAD_TICK           20
 
 #define BEEP_DURATION_MS            1000
-#define SHUTDOWN_CONFIRM_TIMEOUT_MS 5000
+#define SHUTDOWN_CONFIRM_TIMEOUT_MS 10000
 
 #define FUNC_SHUTDOWN_REQ           0x0A
 
@@ -122,29 +123,6 @@ static void power_do_shutdown(void)
     rt_kprintf("[PWR] System OFF\n");
 }
 
-/**
- * @brief  Graceful shutdown: send request to host, wait for ACK (5s timeout).
- */
-static void power_shutdown_graceful(void)
-{
-    rt_kprintf("[PWR] Graceful shutdown initiated\n");
-
-    Flag.power_shutdown_confirmed = 0;
-    power_request_shutdown_to_host();
-
-    /* Wait for host ACK */
-    uint32_t start_tick = rt_tick_get();
-    while (!Flag.power_shutdown_confirmed) {
-        if ((rt_tick_get() - start_tick) >= rt_tick_from_millisecond(SHUTDOWN_CONFIRM_TIMEOUT_MS)) {
-            rt_kprintf("[PWR] Shutdown confirm timeout, forced shutdown\n");
-            break;
-        }
-        rt_thread_mdelay(POWER_THREAD_TICK);
-    }
-
-    power_do_shutdown();
-}
-
 /* ============================================================================
  *  Power Management Thread
  * ===========================================================================*/
@@ -171,20 +149,51 @@ static void power_thread_entry(void *parameter)
             break;
 
         case POWER_STATE_ON:
-            /* Check for shutdown requests from KEY_Scan() */
-            if (Flag.power_force_shutdown) {
-                Flag.power_force_shutdown = 0;
+            /* Check for shutdown request from KEY_Scan() */
+            if (Flag.power_shutdown_request) {
                 Flag.power_shutdown_request = 0;
-                s_power_state = POWER_STATE_SHUTTING_DOWN;
-                rt_kprintf("[PWR] Forced shutdown by long press 4s\n");
-                power_do_shutdown();
-            } else if (Flag.power_shutdown_request) {
-                Flag.power_shutdown_request = 0;
-                s_power_state = POWER_STATE_SHUTTING_DOWN;
-                power_shutdown_graceful();
+                Flag.power_shutdown_confirmed = 0;
+                Flag.power_shutdown_denied = 0;
+                power_request_shutdown_to_host();
+                s_power_state = POWER_STATE_WAIT_CONFIRM;
+                rt_kprintf("[PWR] Shutdown request sent, waiting for host confirmation\n");
             }
             rt_thread_mdelay(POWER_THREAD_TICK);
             break;
+
+        case POWER_STATE_WAIT_CONFIRM:
+        {
+            static uint32_t wait_start_tick = 0;
+
+            /* Record tick on first entry */
+            if (wait_start_tick == 0) {
+                wait_start_tick = rt_tick_get();
+            }
+
+            /* Check for host confirmation */
+            if (Flag.power_shutdown_confirmed) {
+                Flag.power_shutdown_confirmed = 0;
+                wait_start_tick = 0;
+                s_power_state = POWER_STATE_SHUTTING_DOWN;
+                rt_kprintf("[PWR] Host confirmed shutdown\n");
+                power_do_shutdown();
+            }
+            /* Check for host denial */
+            else if (Flag.power_shutdown_denied) {
+                Flag.power_shutdown_denied = 0;
+                wait_start_tick = 0;
+                s_power_state = POWER_STATE_ON;
+                rt_kprintf("[PWR] Host denied shutdown, back to ON\n");
+            }
+            /* Check for timeout (10s no response -> back to ON) */
+            else if ((rt_tick_get() - wait_start_tick) >= rt_tick_from_millisecond(SHUTDOWN_CONFIRM_TIMEOUT_MS)) {
+                wait_start_tick = 0;
+                s_power_state = POWER_STATE_ON;
+                rt_kprintf("[PWR] Shutdown confirm timeout, back to ON\n");
+            }
+            rt_thread_mdelay(POWER_THREAD_TICK);
+            break;
+        }
 
         case POWER_STATE_SHUTTING_DOWN:
             rt_thread_mdelay(POWER_THREAD_TICK);
