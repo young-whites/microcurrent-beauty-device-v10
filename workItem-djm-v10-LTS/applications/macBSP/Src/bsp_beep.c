@@ -46,11 +46,14 @@ void BEEP_On(void)
 *****************************************************************************/
 void BEEP_SetCycleDuty(int16_t Cycle, int16_t Duty)
 {
-    if(Cycle <= 0) Cycle = 1;       /* Minimum cycle 1ms */
-    if(Duty <= 0) Duty = 1;         /* Minimum duty 1ms */
+    if(Cycle <= 0) Cycle = 10;      /* Minimum cycle 10ms */
+    if(Duty <= 0) Duty = 10;        /* Minimum duty 10ms */
     if(Duty > Cycle) Duty = Cycle;  /* Duty cannot exceed cycle */
-    beepCyc=Cycle;
-    beepDty=Duty;
+    /* Convert ms to scan ticks (1 tick = 10ms) */
+    beepCyc = Cycle / 10;
+    beepDty = Duty / 10;
+    if(beepCyc <= 0) beepCyc = 1;
+    if(beepDty <= 0) beepDty = 1;
     beepClk=0;
 }
 
@@ -143,7 +146,7 @@ static void beep_thread_entry(void *parameter)
 
     while (1) {
         BEEP_DrvScan();
-        rt_thread_mdelay(1);
+        rt_thread_mdelay(10);
     }
 }
 
