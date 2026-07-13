@@ -65,7 +65,7 @@ static void power_boot_sequence(void)
     rt_kprintf("[PWR] Boot sequence started\n");
 
     /* Step 1: Turn on system LED (PA6) */
-    LED_On(LED_Name_Green);
+    LED_On(LED_Name_Start);
 
     /* Step 2: Beep 1s (non-blocking, driven by beep timer) */
     BEEP_SetCycleDuty(BEEP_DURATION_MS, BEEP_DURATION_MS);
@@ -117,7 +117,7 @@ static void power_do_shutdown(void)
     rt_thread_mdelay(BEEP_DURATION_MS);
 
     /* Turn off LED */
-    LED_Off(LED_Name_Green);
+    LED_Off(LED_Name_Start);
 
     s_power_state = POWER_STATE_OFF;
     rt_kprintf("[PWR] System OFF\n");

@@ -18,7 +18,7 @@
 /* LED name type */
 typedef	enum
 {
-    LED_Name_Green = (0x01),
+    LED_Name_Start = (0x01),
 }LED_Name_TypeDef;
 
 
