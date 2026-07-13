@@ -26,7 +26,7 @@
 #define POWER_THREAD_STACK_SIZE     512
 #define POWER_THREAD_TICK           20
 
-#define BEEP_DURATION_MS            1000
+#define BEEP_DURATION_MS            300
 #define SHUTDOWN_CONFIRM_TIMEOUT_MS 10000
 
 #define FUNC_SHUTDOWN_REQ           0x0A
