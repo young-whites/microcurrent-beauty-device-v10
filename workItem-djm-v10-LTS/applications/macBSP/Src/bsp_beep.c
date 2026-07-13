@@ -98,7 +98,6 @@ void BEEP_DrvScan(void)
                 if(++beepCct >= beepRep){           // Major-cycle ended
                     beepCct=0;
                     if(beepRep < 100) {
-                        rt_kprintf("[BEEP] Done (rep=%d)\n", beepRep);
                         beepCry=0;  // Repeat count reached, stop beeping
                         macBEEP_OFF();  // Ensure buzzer is off
                     }
@@ -141,7 +140,6 @@ static void beep_thread_entry(void *parameter)
 {
     Beep_Init();
     macBEEP_OFF();
-    rt_kprintf("[BEEP] Beep thread started\n");
 
     while (1) {
         BEEP_DrvScan();
@@ -160,7 +158,7 @@ int beep_thread_Init(void)
                                        BEEP_THREAD_PRIORITY, 10);
     if (tid != RT_NULL) {
         rt_thread_startup(tid);
-        rt_kprintf("[BEEP] Beep thread initialized\n");
+        rt_kprintf("[BEEP] Thread started\n");
     } else {
         rt_kprintf("[BEEP] Failed to create beep thread\n");
     }
