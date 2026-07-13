@@ -124,7 +124,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 
     /* Clear all handles' parameters */
     for (int i = 0; i < 3; i++) {
-        g_dev_state.handle[i].current_percent = 0;
+        g_dev_state.handle[i].current_percent = 1;  /* Default to minimum (1%) */
         g_dev_state.handle[i].temperature = 0;
         g_dev_state.handle[i].pump_speed = 0;
     }
