@@ -7,6 +7,7 @@
  * Date           Author       Notes
  * 2026-06-16     auto-gen     protocol header for DJM-V10 microcurrent beauty device
  * 2026-07-09     refactor     Move action handlers to protocol_act.h
+ * 2026-07-13     feature      Current control: percent -> mA protocol
  */
 
 #ifndef APPLICATIONS_MACBSP_INC_PROTOCOL_H_
@@ -43,7 +44,7 @@ extern "C" {
  *  Functional Code Definitions
  * ===========================================================================*/
 #define FUNC_HANDLE_SWITCH  0x01        /* Handle switching (A/B/C) */
-#define FUNC_CURRENT_CTRL   0x02        /* Current control (0~100%) */
+#define FUNC_CURRENT_CTRL   0x02        /* Current control (mA value) */
 #define FUNC_TEMP_CTRL      0x03        /* Temperature adjustment (0~41C) */
 #define FUNC_PUMP_CTRL      0x04        /* Pump speed control (0~100%) */
 #define FUNC_START_PAUSE    0x05        /* Start/Pause treatment */
@@ -114,9 +115,10 @@ typedef enum {
  *  Handle Parameter Structure (per-handle state)
  * ===========================================================================*/
 typedef struct {
-    uint8_t current_percent;    /* Current output percentage (0~100) */
-    uint8_t temperature;        /* Target temperature (0~41C) */
-    uint8_t pump_speed;         /* Pump speed (0~100%) */
+    uint16_t current_ma;        /* Current output in mA (protocol value) */
+    uint8_t  current_percent;   /* Internal: percentage for NNC6521 driver */
+    uint8_t  temperature;       /* Target temperature (0~41C) */
+    uint8_t  pump_speed;        /* Pump speed (0~100%) */
 } handle_params_t;
 
 /* ============================================================================

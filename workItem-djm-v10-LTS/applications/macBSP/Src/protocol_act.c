@@ -124,7 +124,9 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 
     /* Clear all handles' parameters */
     for (int i = 0; i < 3; i++) {
-        g_dev_state.handle[i].current_percent = 1;  /* Default to minimum (1%) */
+        const waveform_config_t *cfg = waveform_get_config(g_dev_state.waveform_id);
+        g_dev_state.handle[i].current_ma = cfg ? cfg->min_current : 0;
+        g_dev_state.handle[i].current_percent = 0;  /* min_current maps to 0% */
         g_dev_state.handle[i].temperature = 0;
         g_dev_state.handle[i].pump_speed = 0;
     }
@@ -142,23 +144,19 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 
 /**
  * @brief  Handle 0x02: Current control.
- *         para[0] = current percentage (0~100)
- *         para[1] = target handle ID (0x0A/0x0B/0x0C)
+ *         para[0] = current high byte (mA)
+ *         para[1] = current low byte (mA)
+ *         para[2] = target handle ID (0x0A/0x0B/0x0C)
  */
 static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
 {
-    if (param_len < 2) {
+    if (param_len < 3) {
         protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
         return;
     }
 
-    uint8_t percent = params[0];
-    uint8_t handle_id = params[1];
-
-    if (percent > 100) {
-        protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
-        return;
-    }
+    uint16_t current_ma = (params[0] << 8) | params[1];  /* mA value from upper machine */
+    uint8_t handle_id = params[2];
 
     int hi = protocol_handle_index(handle_id);
     if (hi < 0) {
@@ -166,23 +164,36 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
+    /* Validate against current waveform's range */
+    const waveform_config_t *cfg = waveform_get_config(g_dev_state.waveform_id);
+    if (cfg == NULL) {
+        protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
+        return;
+    }
+
+    /* Clamp to waveform range */
+    if (current_ma < cfg->min_current) current_ma = cfg->min_current;
+    if (current_ma > cfg->max_current) current_ma = cfg->max_current;
+
+    /* Convert mA to percentage for NNC6521 driver */
+    uint32_t range = cfg->max_current - cfg->min_current;
+    uint8_t percent = (range > 0) ? ((current_ma - cfg->min_current) * 100 / range) : 0;
+
+    /* Store both values */
+    g_dev_state.handle[hi].current_ma = current_ma;
     g_dev_state.handle[hi].current_percent = percent;
 
-    /* If this is the active handle and treatment is running,
-     * update amplitude only (no full waveform reconfigure) */
+    /* If this is the active handle and treatment is running, update amplitude */
     if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
-        waveform_update_amplitude(chip_id, channel,
-                                  g_dev_state.waveform_id, percent);
-        rt_kprintf("[PROTO] Amplitude updated: chip %d ch %d = %u%%\n",
-                   chip_id, channel, percent);
+        waveform_update_amplitude(chip_id, channel, g_dev_state.waveform_id, percent);
     }
 
-    rt_kprintf("[PROTO] Current set: handle %c = %u%%\n", 'A' + hi, percent);
+    rt_kprintf("[PROTO] Current set: handle %c = %u mA (%u%%)\n", 'A' + hi, current_ma, percent);
 
-    uint8_t ack_params[2] = { percent, handle_id };
-    protocol_send_ack(FUNC_CURRENT_CTRL, ack_params, 2);
+    uint8_t ack_params[3] = { params[0], params[1], handle_id };
+    protocol_send_ack(FUNC_CURRENT_CTRL, ack_params, 3);
 }
 
 /**
@@ -375,6 +386,22 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
     }
 
     g_dev_state.waveform_id = waveform_id;
+
+    /* Recalculate percent for all handles based on new waveform range */
+    for (int i = 0; i < 3; i++) {
+        if (g_dev_state.handle[i].current_ma > 0) {
+            const waveform_config_t *new_cfg = waveform_get_config(waveform_id);
+            if (new_cfg) {
+                uint16_t ma = g_dev_state.handle[i].current_ma;
+                if (ma < new_cfg->min_current) ma = new_cfg->min_current;
+                if (ma > new_cfg->max_current) ma = new_cfg->max_current;
+                uint32_t range = new_cfg->max_current - new_cfg->min_current;
+                g_dev_state.handle[i].current_percent = (range > 0) ?
+                    ((ma - new_cfg->min_current) * 100 / range) : 0;
+                g_dev_state.handle[i].current_ma = ma;
+            }
+        }
+    }
 
     /* If treatment is running, apply new waveform immediately */
     int hi = protocol_handle_index(g_dev_state.current_handle);
