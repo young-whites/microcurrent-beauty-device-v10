@@ -443,3 +443,36 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
         }
     }
 }
+
+/* ============================================================================ *  Waveform Control (called by power_task for shutdown)
+ * ===========================================================================*/
+
+/**
+ * @brief  Stop all waveform output on all NNC6521 chips.
+ *         Called by power_task during shutdown sequence.
+ */
+void protocol_stop_waveform(void)
+{
+    /* Disable AWG on all channels of both chips */
+    nnc6521_awg_enable_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0, 0);
+    nnc6521_awg_enable_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1, 0);
+    nnc6521_awg_enable_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0, 0);
+    rt_kprintf("[PROTO] All waveform output stopped\n");
+}
+
+/**
+ * @brief  Start waveform output on the current handle's chip/channel.
+ *         Called by power_task or protocol module when needed.
+ */
+void protocol_start_waveform(void)
+{
+    int hi = protocol_handle_index(g_dev_state.current_handle);
+    if (hi >= 0 && g_dev_state.is_running) {
+        uint8_t chip_id = handle_to_chip(hi);
+        uint8_t channel = handle_to_channel(hi);
+        waveform_apply(chip_id, channel,
+                       g_dev_state.waveform_id,
+                       g_dev_state.handle[hi].current_percent);
+        rt_kprintf("[PROTO] Waveform started on chip %d ch %d\n", chip_id, channel);
+    }
+}
