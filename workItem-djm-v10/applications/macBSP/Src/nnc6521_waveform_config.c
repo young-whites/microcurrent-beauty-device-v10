@@ -260,24 +260,29 @@ static uint8_t get_preloaded_type(uint8_t waveform_type)
  * ===========================================================================*/
 
 /**
- * @brief Calculate actual output current from waveform ID and percentage
+ * @brief Get clamped output current from waveform ID and desired mA value
  *
- * Formula: actual_current = min_current + (max_current - min_current) * percent / 100
+ * If requested current is 0, returns 0 (output disabled).
+ * Otherwise clamps to [min_current, max_current] range of the selected waveform.
  *
  * @param[in] waveform_id Waveform ID (1~WAVEFORM_COUNT)
- * @param[in] percent     Current percentage (0~100)
- * @return Actual output current (mA), returns 0 for invalid parameters
+ * @param[in] current_ma  Desired current in mA
+ * @return Clamped output current (mA), returns 0 for invalid parameters
  *
  * @see waveform_apply()
  */
-uint32_t waveform_calc_current(uint8_t waveform_id, uint8_t percent)
+uint32_t waveform_calc_current(uint8_t waveform_id, uint8_t current_ma)
 {
     if (waveform_id < 1 || waveform_id > WAVEFORM_COUNT) return 0;
-    if (percent > 100) percent = 100;
+    if (current_ma == 0) return 0;
 
     const waveform_config_t *cfg = &g_waveform_configs[waveform_id - 1];
-    uint32_t range = cfg->max_current - cfg->min_current;
-    return cfg->min_current + (range * percent) / 100;
+
+    /* Clamp to waveform's valid current range */
+    if (current_ma < cfg->min_current) return cfg->min_current;
+    if (current_ma > cfg->max_current) return cfg->max_current;
+
+    return current_ma;
 }
 
 /* ============================================================================
@@ -313,18 +318,18 @@ const waveform_config_t* waveform_get_config(uint8_t waveform_id)
  * @param[in] chip_id     Chip ID
  * @param[in] channel     Channel number
  * @param[in] waveform_id Waveform ID (1~WAVEFORM_COUNT)
- * @param[in] percent     Current percentage (0~100)
+ * @param[in] current_ma  Desired current in mA (0=output off, clamped to waveform range)
  *
  * @note CI (current index) defaults to 4 for reasonable drive range
  * @note Custom SPI waveforms use asymmetric mode (asymmetric = 0)
  */
 void waveform_apply(uint8_t chip_id, uint8_t channel,
-                    uint8_t waveform_id, uint8_t percent)
+                    uint8_t waveform_id, uint8_t current_ma)
 {
     if (waveform_id < 1 || waveform_id > WAVEFORM_COUNT) return;
 
     const waveform_config_t *cfg = &g_waveform_configs[waveform_id - 1];
-    uint32_t actual_current = waveform_calc_current(waveform_id, percent);
+    uint32_t actual_current = waveform_calc_current(waveform_id, current_ma);
 
     /* Map waveform type to NNC6521 preloaded waveform enum */
     uint8_t nnc_waveform = get_preloaded_type(cfg->waveform_type);

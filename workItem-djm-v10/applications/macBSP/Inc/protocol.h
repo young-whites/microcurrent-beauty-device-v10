@@ -115,7 +115,7 @@ typedef enum {
  *  Handle Parameter Structure (per-handle state)
  * ===========================================================================*/
 typedef struct {
-    uint8_t current_percent;    /* Current output percentage (0~100) */
+    uint8_t current_ma;        /* Current output in mA (0~100, clamped to waveform range) */
     uint8_t temperature;        /* Target temperature (0~41C) */
     uint8_t pump_speed;         /* Pump speed (0~100%) */
 } handle_params_t;

@@ -90,32 +90,34 @@ static const uint16_t waveform_freq_hz[] = {
  * ===========================================================================*/
 
 /**
- * @brief  Map current percentage to actual current (mA) for the active waveform.
- *         actual_current = min + (max - min) * percent / 100
+ * @brief  Map current mA value to actual output current for the active waveform.
+ *         The input is clamped to the waveform's valid range.
  */
-uint16_t protocol_map_percent_to_current(uint8_t waveform_id, uint8_t percent)
+uint16_t protocol_map_percent_to_current(uint8_t waveform_id, uint8_t current_ma)
 {
     if (waveform_id < 1 || waveform_id > 9) return 0;
-    if (percent == 0) return 0;
+    if (current_ma == 0) return 0;
 
     uint16_t cmin = waveform_current_min[waveform_id];
     uint16_t cmax = waveform_current_max[waveform_id];
-    return cmin + (uint16_t)((uint32_t)(cmax - cmin) * percent / 100);
+    if (current_ma < cmin) return cmin;
+    if (current_ma > cmax) return cmax;
+    return current_ma;
 }
 
 /**
  * @brief  Print waveform info in the standard format.
  * @param  waveform_id  Waveform ID (1~9).
  * @param  current_ma   Actual current in mA.
- * @param  percent      Current percentage.
+ * @param  current_ma   Current setting in mA.
  */
-static void waveform_print_info(uint8_t waveform_id, uint16_t current_ma, uint8_t percent)
+static void waveform_print_info(uint8_t waveform_id, uint16_t current_ma, uint8_t current_setting)
 {
     if (waveform_id < 1 || waveform_id > 9) return;
 
     rt_kprintf("========================================\n");
     rt_kprintf("Waveform #%u: %s\n", waveform_id, waveform_names[waveform_id]);
-    rt_kprintf("  Current: %u mA (%u%%)\n", current_ma, percent);
+    rt_kprintf("  Current: %u mA (setting: %u mA)\n", current_ma, current_setting);
     rt_kprintf("  Frequency: %u Hz\n", waveform_freq_hz[waveform_id]);
     rt_kprintf("  Type: %s\n", waveform_types[waveform_id]);
     rt_kprintf("========================================\n");
@@ -135,7 +137,7 @@ void protocol_update_current_output(uint8_t handle_idx)
     uint8_t channel = WAVEFORM_GEN_CH0;
 
     waveform_apply(chip_id, channel, g_dev_state.waveform_id,
-                   g_dev_state.handle[handle_idx].current_percent);
+                   g_dev_state.handle[handle_idx].current_ma);
 }
 
 void protocol_start_waveform(void)
@@ -159,9 +161,9 @@ void protocol_start_waveform(void)
     protocol_update_current_output(hi);
 
     /* Print waveform info */
-    uint8_t percent = g_dev_state.handle[hi].current_percent;
-    uint16_t current_ma = protocol_map_percent_to_current(g_dev_state.waveform_id, percent);
-    waveform_print_info(g_dev_state.waveform_id, current_ma, percent);
+    uint8_t current_setting = g_dev_state.handle[hi].current_ma;
+    uint16_t current_ma = protocol_map_percent_to_current(g_dev_state.waveform_id, current_setting);
+    waveform_print_info(g_dev_state.waveform_id, current_ma, current_setting);
 }
 
 void protocol_stop_waveform(void)
@@ -215,7 +217,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 
     /* Clear all handles' parameters (mutually exclusive) */
     for (int i = 0; i < 3; i++) {
-        g_dev_state.handle[i].current_percent = 0;
+        g_dev_state.handle[i].current_ma = 0;
         g_dev_state.handle[i].temperature = 0;
         g_dev_state.handle[i].pump_speed = 0;
         temp_pid_set_target(i, 0.0f);
@@ -234,8 +236,8 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 }
 
 /**
- * @brief  Handle 0x02: Current control.
- *         para[0] = current percentage (0~100)
+ * @brief  Current control.
+ *         para[0] = current in mA (0~100, clamped to waveform range)
  *         para[1] = target handle ID (0x0A/0x0B/0x0C)
  */
 static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
@@ -259,8 +261,8 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Save current percentage for the target handle */
-    g_dev_state.handle[hi].current_percent = percent;
+    /* Save current mA value for the target handle */
+    g_dev_state.handle[hi].current_ma = percent;
 
     /* If target handle is the current active handle, update output immediately */
     if (handle_id == g_dev_state.current_handle) {
@@ -455,13 +457,13 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
     g_dev_state.waveform_id = waveform_id;
 
     /* Print waveform info on selection change */
-    uint8_t percent = 0;
+    uint8_t current_setting = 0;
     uint8_t hi = protocol_handle_index(g_dev_state.current_handle);
     if (hi >= 0) {
-        percent = g_dev_state.handle[hi].current_percent;
+        current_setting = g_dev_state.handle[hi].current_ma;
     }
-    uint16_t current_ma = protocol_map_percent_to_current(waveform_id, percent);
-    waveform_print_info(waveform_id, current_ma, percent);
+    uint16_t current_ma = protocol_map_percent_to_current(waveform_id, current_setting);
+    waveform_print_info(waveform_id, current_ma, current_setting);
 
     /* Waveform config will be applied via waveform_apply() when treatment
      * starts via protocol_start_waveform(). Current percentage is preserved.

@@ -69,8 +69,8 @@ int main(void)
   nnc6521_analog_enable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);
 
   /* Apply default waveform 1 (Power Smooth) at 50% current */
-  waveform_apply(NNC6521_CHIP_1, WAVEFORM_GEN_CH0, 1, WAVEFORM_DEFAULT_PCT);
-  waveform_apply(NNC6521_CHIP_2, WAVEFORM_GEN_CH0, 1, WAVEFORM_DEFAULT_PCT);
+  waveform_apply(NNC6521_CHIP_1, WAVEFORM_GEN_CH0, 1, WAVEFORM_DEFAULT_MA);
+  waveform_apply(NNC6521_CHIP_2, WAVEFORM_GEN_CH0, 1, WAVEFORM_DEFAULT_MA);
 
   /* Print waveform info */
   {

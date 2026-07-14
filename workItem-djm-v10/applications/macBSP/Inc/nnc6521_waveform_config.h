@@ -20,7 +20,7 @@ extern "C" {
 #define WAVEFORM_COUNT          9       /**< Total preset waveforms (ID 1~9) */
 
 /* Default current percentage -------------------------------------------------*/
-#define WAVEFORM_DEFAULT_PCT    50      /**< Default current percentage (0~100) */
+#define WAVEFORM_DEFAULT_MA     50      /**< Default current in mA */
 
 /**
  * @brief Waveform generation method enumeration
@@ -86,29 +86,30 @@ extern const waveform_config_t g_waveform_configs[WAVEFORM_COUNT];
  * @param[in] chip_id      Chip ID (NNC6521_CHIP_1 or NNC6521_CHIP_2)
  * @param[in] channel      Waveform channel (WAVEFORM_GEN_CH0 or WAVEFORM_GEN_CH1)
  * @param[in] waveform_id  Waveform ID (1~9)
- * @param[in] percent      Current percentage (0~100)
+ * @param[in] current_ma   Desired current in mA (0=output off, clamped to waveform range)
  *
  * @note Returns immediately without action if waveform_id is out of range
- * @note Percent is clamped to 0~100 range
+ * @note current_ma is clamped to waveform's [min_current, max_current] range
  *
  * @see waveform_calc_current, waveform_get_config
  */
 void waveform_apply(uint8_t chip_id, uint8_t channel,
-                    uint8_t waveform_id, uint8_t percent);
+                    uint8_t waveform_id, uint8_t current_ma);
 
 /**
- * @brief Calculate actual output current from waveform ID and percentage
+ * @brief Get clamped output current from waveform ID and desired mA value
  *
- * Formula: actual_current = min_current + (max_current - min_current) * percent / 100
+ * If requested current is 0, returns 0 (output disabled).
+ * Otherwise clamps to [min_current, max_current] range of the selected waveform.
  *
  * @param[in] waveform_id  Waveform ID (1~9)
- * @param[in] percent      Current percentage (0~100)
+ * @param[in] current_ma   Desired current in mA
  *
- * @return Actual current value (mA), returns 0 for invalid ID
+ * @return Clamped current value (mA), returns 0 for invalid ID
  *
  * @see waveform_apply
  */
-uint32_t waveform_calc_current(uint8_t waveform_id, uint8_t percent);
+uint32_t waveform_calc_current(uint8_t waveform_id, uint8_t current_ma);
 
 /**
  * @brief Get configuration structure pointer by waveform ID
