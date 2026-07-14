@@ -34,6 +34,13 @@ static uint8_t handle_to_channel(int handle_idx)
     return (handle_idx == 1) ? WAVEFORM_GEN_CH1 : WAVEFORM_GEN_CH0;
 }
 
+/* Handle A -> small heater, Handle B -> large heater, Handle C -> no heater */
+static const int8_t s_handle_to_pid[3] = {
+    TEMP_PID_SMALL,  /* Handle A (0) -> small handle heater */
+    TEMP_PID_LARGE,  /* Handle B (1) -> large handle heater */
+    -1               /* Handle C (2) -> no PID (pump only) */
+};
+
 /**
  * @brief  Stop waveform output on the chip associated with the given handle.
  *         Also disables the corresponding 54V boost converter.
@@ -122,7 +129,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         }
     }
 
-    /* Turn off all heaters via PID reset and pump */
+    /* Turn off all heaters via PID reset (mutual exclusion) and pump */
     temp_pid_set_target(TEMP_PID_LARGE, 0);
     temp_pid_set_target(TEMP_PID_SMALL, 0);
     bsp_pump_set(0);
@@ -228,11 +235,25 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.handle[hi].temperature = temperature;
 
-    /* Set PID target temperature (PID handles heater PWM control) */
-    temp_pid_set_target(hi, (float)temperature);
+    /* Get PID index for this handle */
+    int8_t pid_idx = s_handle_to_pid[hi];
 
-    rt_kprintf("[PROTO] Temp set: handle %c = %u C, PID target=%.1f\n",
-               'A' + hi, temperature, (float)temperature);
+    if (pid_idx < 0) {
+        /* Handle C has no heating capability */
+        rt_kprintf("[PROTO] Handle C has no heater, temp ignored\n");
+        protocol_send_error(FUNC_TEMP_CTRL, ERR_PARAM);
+        return;
+    }
+
+    /* Mutual exclusion: disable the other handle's PID first */
+    uint8_t other_pid = (pid_idx == TEMP_PID_LARGE) ? TEMP_PID_SMALL : TEMP_PID_LARGE;
+    temp_pid_set_target(other_pid, 0);
+
+    /* Set PID target for this handle */
+    temp_pid_set_target(pid_idx, (float)temperature);
+
+    rt_kprintf("[PROTO] Temp set: handle %c = %u C, PID[%d] target=%.1f\n",
+               'A' + hi, temperature, pid_idx, (float)temperature);
 
     uint8_t ack_params[2] = { temperature, handle_id };
     protocol_send_ack(FUNC_TEMP_CTRL, ack_params, 2);
