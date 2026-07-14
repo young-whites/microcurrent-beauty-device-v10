@@ -593,18 +593,6 @@ void nnc6521_wavegen_config(uint8_t chip_id,
     /* Finally enable waveform generator */
     addr = WG_REG_ADDR(wf->CHANNEL, WG_DRV_CTRL_REG0_OFFSET);
     nnc6521_write_wave_reg(chip_id, addr, wf->WG_DRV_CTRL_REG0.value);
-
-    /* DEBUG: Read back registers to verify SPI write */
-    {
-        uint8_t ctrl_rb = nnc6521_read_wave_reg(chip_id, addr);
-        uint8_t cfg_rb = nnc6521_read_wave_reg(chip_id,
-            WG_REG_ADDR(wf->CHANNEL, WG_DRV_CONFIG_REG0_OFFSET));
-        uint8_t ana_rb = nnc6521_read_reg(chip_id,
-            (wf->CHANNEL == WAVEFORM_GEN_CH0) ? ANA_ENABLE_REG_1_ADDR : ANA_ENABLE_REG_2_ADDR);
-        rt_kprintf("[NNC6521] ch%d CTRL=0x%02X(wrote=0x%02X) CFG=0x%02X(wrote=0x%02X) ANA=0x%02X\n",
-                   wf->CHANNEL, ctrl_rb, wf->WG_DRV_CTRL_REG0.value,
-                   cfg_rb, wf->WG_DRV_CONFIG_REG0.value, ana_rb);
-    }
 }
 
 /* ============================================================================
