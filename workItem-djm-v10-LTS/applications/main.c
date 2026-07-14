@@ -18,6 +18,8 @@
 #include "nnc6521.h"
 #include "nnc6521_waveform_config.h"
 #include "power_task.h"
+#include "ntc_sensor.h"
+#include "temp_pid.h"
 
 
 /**
@@ -51,6 +53,12 @@ int main(void)
   MX_GPIO_Init();
   /* UART1/UART2 already initialized by RT-Thread driver + protocol module */
   MX_ADC1_Init();
+
+  /* Initialize NTC temperature sensors (RT-Thread ADC framework) */
+  ntc_sensor_init();
+
+  /* Initialize temperature PID controller */
+  temp_pid_init();
 
   /* Initialize NNC6521 waveform generator */
   nnc6521_gpio_init();
