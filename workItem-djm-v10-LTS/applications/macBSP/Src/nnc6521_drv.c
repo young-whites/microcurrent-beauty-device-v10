@@ -71,8 +71,28 @@ void nnc6521_init(uint8_t chip_id)
             break;
     }
 
-    /* Reset waveform generator */
-    nnc6521_write_reg(chip_id, PMU_REG_ADDR, 0x00);
+    /* Reset NNC6521: write reset bit, wait, then clear */
+    nnc6521_write_reg(chip_id, PMU_REG_ADDR, 0x20);  /* PMU bit5 = wave_gen_rst */
+    {
+        volatile uint32_t delay = 40000;
+        while (delay--) __NOP();
+    }
+    nnc6521_write_reg(chip_id, PMU_REG_ADDR, 0x00);  /* Release reset, normal mode */
+    {
+        volatile uint32_t delay = 40000;
+        while (delay--) __NOP();
+    }
+
+    /* Verify chip is responding by reading back PMU register */
+    {
+        uint8_t pmu_check = nnc6521_read_reg(chip_id, PMU_REG_ADDR);
+        rt_kprintf("[NNC6521] chip%d init: PMU readback=0x%02X (expected 0x00)\n",
+                   chip_id, pmu_check);
+        if (pmu_check == 0x11) {
+            rt_kprintf("[NNC6521] chip%d SPI NOT RESPONDING! Check power and wiring.\n",
+                       chip_id);
+        }
+    }
 
     /* Basic clock and analog setup */
     nnc6521_write_reg(chip_id, CLK_CTRL_REG_ADDR, 0x00);     /* PCLK div = 1 (2MHz) */

@@ -83,10 +83,10 @@ void nnc6521_gpio_init(void)
         HAL_GPIO_Init(p->chip_en_port, &gpio);
         HAL_GPIO_WritePin(p->chip_en_port, p->chip_en_pin, GPIO_PIN_RESET);
 
-        /* MISO: floating input */
+        /* MISO: input with pull-up (prevent floating when chip not responding) */
         gpio.Pin  = p->miso_pin;
         gpio.Mode = GPIO_MODE_INPUT;
-        gpio.Pull = GPIO_NOPULL;
+        gpio.Pull = GPIO_PULLUP;
         HAL_GPIO_Init(p->miso_port, &gpio);
 
         /* INTB: floating input */
