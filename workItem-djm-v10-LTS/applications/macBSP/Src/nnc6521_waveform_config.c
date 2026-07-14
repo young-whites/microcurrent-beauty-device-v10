@@ -330,8 +330,9 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
     uint8_t nnc_waveform = get_preloaded_type(cfg->waveform_type);
 
     /* CI (current index) for drive strength control.
-     * Default value 4 provides reasonable drive range. */
-    uint8_t ci = 4;
+     * Map percent (0~100) to CI range (0~7) for preloaded waveforms */
+    uint8_t ci = (percent > 0) ? (uint8_t)((uint32_t)percent * 7 / 100) : 0;
+    if (ci > 7) ci = 7;
 
     switch (cfg->gen_method) {
         case GEN_METHOD_PRELOADED:
@@ -357,7 +358,7 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
                 nnc6521_customized_waveform(chip_id, channel,
                                             cfg->point_num,
                                             cfg->waveform_data,
-                                            actual_current * 1000,
+                                            actual_current,
                                             cfg->half_wave_clk,
                                             cfg->half_wave_clk,
                                             cfg->silent_time,
@@ -376,7 +377,7 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
                 nnc6521_amplitude_modulation(chip_id, channel,
                                              cfg->point_num,
                                              cfg->waveform_data,
-                                             actual_current * 1000,
+                                             actual_current,
                                              cfg->carrier_clk,
                                              cfg->silent_time,
                                              cfg->am_interval);
