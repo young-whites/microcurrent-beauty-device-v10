@@ -16,6 +16,7 @@
 #include "nnc6521_waveform_config.h"
 #include "nnc6521_waveform_config.h"
 #include "temp_pid.h"
+#include "dac7311.h"
 #include "ntc_sensor.h"
 #include <string.h>
 
@@ -208,7 +209,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     /* Turn off all heaters via PID reset (mutual exclusion) and pump */
     temp_pid_set_target(TEMP_PID_LARGE, 0);
     temp_pid_set_target(TEMP_PID_SMALL, 0);
-    bsp_pump_set(0);
+    dac7311_set_percent(0);
 
     /* Clear all handles' parameters */
     for (int i = 0; i < 3; i++) {
@@ -355,11 +356,11 @@ static void handle_pump_ctrl(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.handle[2].pump_speed = speed;
 
-    /* Control pump hardware (on/off only) */
-    bsp_pump_set(speed > 0 ? 1 : 0);
+    /* Control pump via DAC7311: 0~100% maps to 0~5V */
+    dac7311_set_percent(speed);
 
-    rt_kprintf("[PROTO] Pump speed set: %u%%, pump %s\n", speed,
-               speed > 0 ? "ON" : "OFF");
+    rt_kprintf("[PROTO] Pump speed set: %u%%, DAC output: %.2fV\n",
+               speed, dac7311_get_voltage());
 
     uint8_t ack_params[1] = { speed };
     protocol_send_ack(FUNC_PUMP_CTRL, ack_params, 1);

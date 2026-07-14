@@ -20,6 +20,7 @@
 #include "power_task.h"
 #include "ntc_sensor.h"
 #include "temp_pid.h"
+#include "dac7311.h"
 
 
 /**
@@ -67,6 +68,9 @@ int main(void)
   nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0);  /* Handle A */
   nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1);  /* Handle B */
   nnc6521_analog_enable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);  /* Handle C */
+
+  /* Initialize DAC7311 for pump speed control (0~5V) */
+  dac7311_init();
   rt_kprintf("[MAIN] NNC6521 initialized (dual chip, 3 channels)\n");
 
   /* Initialize power management task (must be after NNC6521 init) */
