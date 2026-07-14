@@ -39,6 +39,7 @@
 extern UART_HandleTypeDef huart2;
 
 /* VOFA+ FireWater protocol: target,current,output,p,i,d\n */
+/* WARNING: HAL_UART_Transmit is blocking. Set VOFA_ENABLE=0 for production! */
 #define VOFA_ENABLE  1
 
 #if VOFA_ENABLE
@@ -91,6 +92,7 @@ typedef struct {
  *  PID Instance Data
  * ===========================================================================*/
 static temp_pid_t s_pid[TEMP_PID_COUNT];
+static uint8_t s_pid_initialized = 0;
 static autotune_state_t s_autotune[TEMP_PID_COUNT];
 
 /* GPIO port/pin mapping for heater control */
@@ -336,6 +338,7 @@ int temp_pid_init(void)
     }
 
     rt_kprintf("[PID] Temperature PID controller initialized, instances=%d\n", TEMP_PID_COUNT);
+    s_pid_initialized = 1;
     rt_kprintf("[PID] Kp=%.1f Ki=%.3f Kd=%.1f, CtrlPeriod=%dms, PWMPeriod=%dms\n",
                TEMP_PID_KP, TEMP_PID_KI, TEMP_PID_KD,
                TEMP_PID_CTRL_PERIOD * 10, TEMP_PID_PWM_PERIOD * TEMP_PID_CTRL_PERIOD * 10);
@@ -528,6 +531,19 @@ static void autotune_tick(uint8_t pid_idx)
         return;
     }
 
+    /* Safety check: sensor fault detection during autotune */
+    if (temp < TEMP_SENSOR_ERROR_LOW || temp > TEMP_SENSOR_ERROR_HIGH) {
+        heater_set(pid_idx, 0);
+        at->error = 1;
+        at->mode = PID_MODE_NORMAL;
+        pid->enabled = 0;
+        uint8_t err[7] = { AUTOTUNE_STATUS_ERROR, 0,0,0,0,0,0 };
+        protocol_send_ack(FUNC_PID_AUTOTUNE, err, 7);
+        rt_kprintf("[PID-AT] Handle %c ABORT: sensor fault temp=%.1f C\n",
+                   'A' + pid_idx, temp);
+        return;
+    }
+
     /* Timeout watchdog */
     at->timeout_counter++;
     if (at->timeout_counter > TEMP_PID_AUTOTUNE_TIMEOUT) {
@@ -654,6 +670,7 @@ static void autotune_tick(uint8_t pid_idx)
 
 void temp_pid_tick(void)
 {
+    if (!s_pid_initialized) return;
     for (uint8_t i = 0; i < TEMP_PID_COUNT; i++) {
         temp_pid_t *pid = &s_pid[i];
 

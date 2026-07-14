@@ -9,6 +9,7 @@
 #include "power_task.h"
 #include "bsp_hard.h"
 #include "dac7311.h"
+#include "temp_pid.h"
 #include "bsp_led.h"
 #include "bsp_beep.h"
 #include "bsp_typedef.h"
@@ -104,6 +105,9 @@ static void power_do_shutdown(void)
 
     /* Disable pump */
     dac7311_set_percent(0);
+    /* Reset PID state */
+    temp_pid_reset(TEMP_PID_LARGE);
+    temp_pid_reset(TEMP_PID_SMALL);
 
     /* Disable 54V boost */
     bsp_boost_1_enable(0);

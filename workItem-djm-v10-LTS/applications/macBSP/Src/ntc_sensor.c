@@ -33,6 +33,7 @@ static rt_adc_device_t s_adc_dev = RT_NULL;
  *  Sensor Instance Data
  * ===========================================================================*/
 static ntc_sensor_t s_ntc[NTC_CH_COUNT];
+static uint8_t s_ntc_initialized = 0;
 
 /* ADC channel mapping: channel index -> ADC channel number */
 static const rt_uint32_t s_adc_channel[NTC_CH_COUNT] = {
@@ -312,6 +313,7 @@ int ntc_sensor_init(void)
     }
 
     rt_kprintf("[NTC] Sensor module initialized via RT-Thread ADC, channels=%d\n", NTC_CH_COUNT);
+    s_ntc_initialized = 1;
     return RT_EOK;
 }
 
@@ -326,6 +328,7 @@ uint16_t ntc_sensor_read_adc(uint8_t channel)
 
 void ntc_sensor_update(void)
 {
+    if (!s_ntc_initialized) return;
     for (uint8_t ch = 0; ch < NTC_CH_COUNT; ch++) {
         /* Read raw ADC */
         uint16_t raw = ntc_sensor_read_adc(ch);

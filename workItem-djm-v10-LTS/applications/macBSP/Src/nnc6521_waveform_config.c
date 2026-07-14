@@ -351,7 +351,7 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
                 if (waveform_id == 8) {
                     set_pclk_divider(chip_id, PCLK_DIV_16);
                 } else if (waveform_id == 6 || waveform_id == 9) {
-                    set_pclk_divider(chip_id, PCLK_DIV_8);
+                    set_pclk_divider(chip_id, PCLK_DIV_16);  /* 125kHz for 10Hz waveforms */
                 }
 
                 nnc6521_customized_waveform(chip_id, channel,
