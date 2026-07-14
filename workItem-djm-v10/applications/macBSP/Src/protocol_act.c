@@ -146,6 +146,15 @@ void protocol_start_waveform(void)
     uint8_t hi = protocol_handle_index(g_dev_state.current_handle);
     if (hi < 0) return;
 
+    /* Enable 54V boost converter for treatment output */
+    if (hi == 0) {
+        bsp_boost_1_enable(1);  /* Handle A: boost 1 */
+    } else if (hi == 1) {
+        bsp_boost_2_enable(1);  /* Handle B: boost 2 */
+    } else if (hi == 2) {
+        bsp_boost_1_enable(1);  /* Handle C: boost 1 */
+    }
+
     /* Update current output with saved percentage */
     protocol_update_current_output(hi);
 
@@ -166,6 +175,10 @@ void protocol_stop_waveform(void)
     int hi = protocol_handle_index(g_dev_state.current_handle);
     uint8_t chip_id = (hi == 0) ? NNC6521_CHIP_1 : NNC6521_CHIP_2;
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
+
+    /* Disable 54V boost converters */
+    bsp_boost_1_enable(0);
+    bsp_boost_2_enable(0);
 }
 
 /* ============================================================================

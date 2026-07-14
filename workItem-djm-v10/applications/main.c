@@ -70,6 +70,7 @@ int main(void)
 
   /* Apply default waveform 1 (Power Smooth) at 50% current */
   waveform_apply(NNC6521_CHIP_1, WAVEFORM_GEN_CH0, 1, WAVEFORM_DEFAULT_PCT);
+  waveform_apply(NNC6521_CHIP_2, WAVEFORM_GEN_CH0, 1, WAVEFORM_DEFAULT_PCT);
 
   /* Print waveform info */
   {
