@@ -83,30 +83,16 @@ void nnc6521_gpio_init(void)
         HAL_GPIO_Init(p->chip_en_port, &gpio);
         HAL_GPIO_WritePin(p->chip_en_port, p->chip_en_pin, GPIO_PIN_RESET);
 
-        /* MISO: input with pull-up (prevent floating when chip not responding) */
+        /* MISO: floating input */
         gpio.Pin  = p->miso_pin;
         gpio.Mode = GPIO_MODE_INPUT;
-        gpio.Pull = GPIO_PULLUP;
+        gpio.Pull = GPIO_NOPULL;
         HAL_GPIO_Init(p->miso_port, &gpio);
 
         /* INTB: floating input */
         gpio.Pin = p->intb_pin;
         HAL_GPIO_Init(p->intb_port, &gpio);
     }
-
-    /* DEBUG: Toggle SCLK pins to verify GPIO is working
-     * Use oscilloscope/multimeter on PC7 (Chip1 SCLK) and PB11 (Chip2 SCLK)
-     * Remove this block after verification! */
-    rt_kprintf("[NNC6521] GPIO init done. Toggling SCLK for 5 seconds...\n");
-    for (int i = 0; i < 5000; i++) {
-        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
-        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
-        rt_thread_mdelay(1);
-        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_RESET);
-        rt_thread_mdelay(1);
-    }
-    rt_kprintf("[NNC6521] SCLK toggle done. Check PC7/PB11 with scope.\n");
 }
 
 /* ============================================================================
@@ -115,7 +101,13 @@ void nnc6521_gpio_init(void)
 
 /**
  * @brief  Software SPI byte transfer (full-duplex).
- *         SCLK idle low, data sampled on rising edge, shifted on falling edge.
+ *
+ * Timing (CPOL=0, CPHA=0):
+ * - SCLK idle low
+ * - Data sampled on rising edge, shifted on falling edge
+ * - MSB (bit 7) first
+ *
+ * NOP delays ensure minimum setup/hold times for NNC6521 (~55ns @ 72MHz).
  */
 static uint8_t spi_sw_transfer_byte(uint8_t chip_id, uint8_t tx_byte)
 {
@@ -124,14 +116,19 @@ static uint8_t spi_sw_transfer_byte(uint8_t chip_id, uint8_t tx_byte)
 
     for (int8_t bit = 7; bit >= 0; bit--)
     {
-        /* MOSI: set data on falling edge */
+        /* MOSI setup: set data before clock edge */
         if (tx_byte & (1 << bit))
             HAL_GPIO_WritePin(p->mosi_port, p->mosi_pin, GPIO_PIN_SET);
         else
             HAL_GPIO_WritePin(p->mosi_port, p->mosi_pin, GPIO_PIN_RESET);
 
-        /* SCLK rising edge -> slave latches MOSI, master latches MISO */
+        __NOP(); __NOP(); __NOP(); __NOP();  /* Data setup time (~55ns @ 72MHz) */
+
+        /* SCLK rising edge: slave latches MOSI, master latches MISO */
         HAL_GPIO_WritePin(p->sclk_port, p->sclk_pin, GPIO_PIN_SET);
+
+        __NOP(); __NOP(); __NOP(); __NOP();  /* Clock high time (~55ns) */
+        __NOP(); __NOP(); __NOP(); __NOP();  /* Extra margin for NNC6521 */
 
         /* Read MISO */
         if (HAL_GPIO_ReadPin(p->miso_port, p->miso_pin) == GPIO_PIN_SET)
@@ -139,6 +136,8 @@ static uint8_t spi_sw_transfer_byte(uint8_t chip_id, uint8_t tx_byte)
 
         /* SCLK falling edge */
         HAL_GPIO_WritePin(p->sclk_port, p->sclk_pin, GPIO_PIN_RESET);
+
+        __NOP(); __NOP(); __NOP(); __NOP();  /* Clock low time */
     }
 
     return rx_byte;
@@ -150,7 +149,7 @@ static uint8_t spi_sw_transfer_byte(uint8_t chip_id, uint8_t tx_byte)
 
 /**
  * @brief  Write one byte to NNC6521 register.
- *         Write protocol: 4 bytes [addr, cmd, 0x11, data]
+ *         Write protocol: 4 bytes [addr, cmd, data, 0x00]
  *         Normal register cmd = 0x80, waveform register cmd = 0xC0
  */
 void nnc6521_spi_write(uint8_t chip_id, uint8_t addr, uint8_t data, uint8_t is_wave)
@@ -158,19 +157,15 @@ void nnc6521_spi_write(uint8_t chip_id, uint8_t addr, uint8_t data, uint8_t is_w
     const nnc6521_pin_map_t *p = &nnc6521_pins[chip_id];
     uint8_t cmd = is_wave ? 0xC0 : 0x80;
 
-    /* CSN low */
     HAL_GPIO_WritePin(p->csn_port, p->csn_pin, GPIO_PIN_RESET);
+    __NOP(); __NOP(); __NOP(); __NOP();
 
-    /* Byte 0: address */
     spi_sw_transfer_byte(chip_id, addr);
-    /* Byte 1: command */
     spi_sw_transfer_byte(chip_id, cmd);
-    /* Byte 2: data marker */
-    spi_sw_transfer_byte(chip_id, 0x11);
-    /* Byte 3: data */
-    spi_sw_transfer_byte(chip_id, data);
+    spi_sw_transfer_byte(chip_id, data);   /* data in byte 2 */
+    spi_sw_transfer_byte(chip_id, 0x00);   /* dummy byte 3 */
 
-    /* CSN high */
+    __NOP(); __NOP(); __NOP(); __NOP();
     HAL_GPIO_WritePin(p->csn_port, p->csn_pin, GPIO_PIN_SET);
 }
 
@@ -185,17 +180,14 @@ uint8_t nnc6521_spi_read(uint8_t chip_id, uint8_t addr, uint8_t is_wave)
     uint8_t cmd = is_wave ? 0x40 : 0x00;
     uint8_t rx[3];
 
-    /* CSN low */
     HAL_GPIO_WritePin(p->csn_port, p->csn_pin, GPIO_PIN_RESET);
+    __NOP(); __NOP(); __NOP(); __NOP();
 
-    /* Byte 0: address */
     rx[0] = spi_sw_transfer_byte(chip_id, addr);
-    /* Byte 1: command */
     rx[1] = spi_sw_transfer_byte(chip_id, cmd);
-    /* Byte 2: dummy read, actual data comes back */
     rx[2] = spi_sw_transfer_byte(chip_id, 0x00);
 
-    /* CSN high */
+    __NOP(); __NOP(); __NOP(); __NOP();
     HAL_GPIO_WritePin(p->csn_port, p->csn_pin, GPIO_PIN_SET);
 
     return rx[2];

@@ -44,30 +44,17 @@ void nnc6521_init(uint8_t chip_id)
         case NNC6521_CHIP_1:
             __HAL_RCC_GPIOA_CLK_ENABLE();
             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
-            /* ~10ms delay (use rt_thread_mdelay in RT-Thread context) */
-            {
-                volatile uint32_t delay = 80000;
-                while (delay--) __NOP();
-            }
+            { volatile uint32_t d = 360000; while (d--) __NOP(); }  /* ~5ms @ 72MHz */
             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
-            {
-                volatile uint32_t delay = 80000;
-                while (delay--) __NOP();
-            }
+            { volatile uint32_t d = 36000000; while (d--) __NOP(); }  /* ~500ms @ 72MHz */
             break;
 
         case NNC6521_CHIP_2:
             __HAL_RCC_GPIOC_CLK_ENABLE();
             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
-            {
-                volatile uint32_t delay = 80000;
-                while (delay--) __NOP();
-            }
+            { volatile uint32_t d = 360000; while (d--) __NOP(); }  /* ~5ms @ 72MHz */
             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
-            {
-                volatile uint32_t delay = 80000;
-                while (delay--) __NOP();
-            }
+            { volatile uint32_t d = 36000000; while (d--) __NOP(); }  /* ~500ms @ 72MHz */
             break;
     }
 
