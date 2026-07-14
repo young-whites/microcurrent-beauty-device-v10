@@ -44,40 +44,31 @@ void nnc6521_init(uint8_t chip_id)
         case NNC6521_CHIP_1:
             __HAL_RCC_GPIOA_CLK_ENABLE();
             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
-            { volatile uint32_t d = 360000; while (d--) __NOP(); }  /* ~5ms @ 72MHz */
+            { volatile uint32_t d = 72000; while (d--) __NOP(); }   /* ~1ms @ 72MHz */
             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
-            { volatile uint32_t d = 36000000; while (d--) __NOP(); }  /* ~500ms @ 72MHz */
+            { volatile uint32_t d = 360000; while (d--) __NOP(); }  /* ~5ms @ 72MHz */
             break;
 
         case NNC6521_CHIP_2:
             __HAL_RCC_GPIOC_CLK_ENABLE();
             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
-            { volatile uint32_t d = 360000; while (d--) __NOP(); }  /* ~5ms @ 72MHz */
+            { volatile uint32_t d = 72000; while (d--) __NOP(); }   /* ~1ms @ 72MHz */
             HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
-            { volatile uint32_t d = 36000000; while (d--) __NOP(); }  /* ~500ms @ 72MHz */
+            { volatile uint32_t d = 360000; while (d--) __NOP(); }  /* ~5ms @ 72MHz */
             break;
     }
 
     /* Reset NNC6521: write reset bit, wait, then clear */
     nnc6521_write_reg(chip_id, PMU_REG_ADDR, 0x20);  /* PMU bit5 = wave_gen_rst */
-    {
-        volatile uint32_t delay = 40000;
-        while (delay--) __NOP();
-    }
+    { volatile uint32_t d = 72000; while (d--) __NOP(); }   /* ~1ms */
     nnc6521_write_reg(chip_id, PMU_REG_ADDR, 0x00);  /* Release reset, normal mode */
-    {
-        volatile uint32_t delay = 40000;
-        while (delay--) __NOP();
-    }
+    { volatile uint32_t d = 72000; while (d--) __NOP(); }   /* ~1ms */
 
     /* Verify chip is responding by reading back PMU register */
     {
         uint8_t pmu_check = nnc6521_read_reg(chip_id, PMU_REG_ADDR);
-        rt_kprintf("[NNC6521] chip%d init: PMU readback=0x%02X (expected 0x00)\n",
-                   chip_id, pmu_check);
-        if (pmu_check == 0x11) {
-            rt_kprintf("[NNC6521] chip%d SPI NOT RESPONDING! Check power and wiring.\n",
-                       chip_id);
+        if (pmu_check != 0x00) {
+            rt_kprintf("[NNC6521] chip%d SPI error: PMU=0x%02X\n", chip_id, pmu_check);
         }
     }
 
