@@ -99,4 +99,4 @@ int sysTimer_Init(void)
 
     return RT_EOK;
 }
-INIT_APP_EXPORT(sysTimer_Init);
+//INIT_APP_EXPORT(sysTimer_Init);

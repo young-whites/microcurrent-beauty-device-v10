@@ -21,6 +21,7 @@
 #include "ntc_sensor.h"
 #include "temp_pid.h"
 #include "dac7311.h"
+#include "rtt_system_work.h"
 
 
 /**
@@ -75,6 +76,9 @@ int main(void)
 
   /* Initialize power management task (must be after NNC6521 init) */
   power_task_init();
+
+  /* Start system timer (must be after NTC + PID init) */
+  sysTimer_Init();
 
   /* USER CODE BEGIN 2 */
 
