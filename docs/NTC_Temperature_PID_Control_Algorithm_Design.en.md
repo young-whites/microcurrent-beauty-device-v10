@@ -1,7 +1,7 @@
 # NTC Temperature Sensor PID Control Algorithm Design Document
 
-> **Version**: V1.1  
-> **Date**: 2026-07-08  
+> **Version**: V1.3  
+> **Date**: 2026-07-14  
 > **Platform**: STM32F103RCT6 / RT-Thread v5.1.0 / STM32 HAL  
 > **Project**: DJM-V10 Microcurrent Beauty Device
 
@@ -14,6 +14,7 @@
 | V1.0 | 2026-06-29 | — | Initial version: NTC temperature acquisition, PID algorithm, software PWM heating control |
 | V1.1 | 2026-07-08 | — | Added NTC lookup table + linear interpolation algorithm based on manufacturer B-value table (-50~125°C, 176 points), dual-mode switch via NTC_USE_LOOKUP_TABLE macro |
 | V1.2 | 2026-07-14 | — | ADC acquisition migrated to RT-Thread ADC device framework; added handle-temperature mapping; protocol layer integrated PID temperature control; added initialization sequence; added temperature control mutex and safety protection descriptions |
+| V1.3 | 2026-07-14 | — | Added PID parameter auto-tuning chapter (relay feedback method, Ziegler-Nichols formula, auto-tuning flow, safety protection) |
 
 ---
 
@@ -456,6 +457,59 @@ Debug information via UART2 (115200bps):
 | Temperature Reporting | New protocol function code for periodic temperature reporting |
 | Hardware PWM | Use TIM peripheral for hardware PWM, reducing CPU overhead |
 | Temperature Profiles | Multi-stage temperature curves (ramp → hold → cool) |
+
+---
+
+## 12. PID Parameter Auto-Tuning
+
+### 12.1 Relay Feedback Principle
+
+PID parameter auto-tuning uses the **Relay Feedback Method**, generating sustained oscillations through bang-bang control to extract system parameters.
+
+Basic principle:
+1. Heater runs at 100% duty cycle until temperature reaches `target + 2°C`
+2. Heater runs at 0% duty cycle until temperature drops to `target - 2°C`
+3. Repeat the above process to generate sustained oscillations
+4. Measure oscillation period Tu and amplitude Au
+
+### 12.2 Ziegler-Nichols Formula
+
+Calculate critical parameters from oscillation characteristics:
+
+```
+Critical gain Ku = 4d / (π × a)
+Where: d = relay amplitude (50%, half of full heating ON/OFF)
+       a = oscillation amplitude Au / 2
+
+PID parameters:
+Kp = 0.6 × Ku
+Ki = 2 × Kp / Tu
+Kd = Kp × Tu / 8
+```
+
+### 12.3 Auto-Tuning Flow
+
+1. Host sends auto-tune command (func=0x0C) with target temperature
+2. Device returns start confirmation (status=0x00)
+3. PID controller switches to bang-bang mode
+4. Execute 6 complete oscillation cycles
+5. Measure Tu (oscillation period) and Au (oscillation amplitude)
+6. Calculate Kp, Ki, Kd via Ziegler-Nichols formula
+7. Automatically apply new PID parameters
+8. Return result (status=0x01 + parameter values)
+
+### 12.4 Safety Protection
+
+- **Overheat protection**: Auto-tune aborted if temperature exceeds 45°C
+- **Timeout protection**: Auto-abort if not completed within 20 minutes
+- **PID safety checks**: Existing safety mechanisms (sensor fault detection, overheat shutdown, etc.) remain active during auto-tuning
+- **Error handling**: Returns error status (status=0x02) on abort; PID parameters unchanged
+
+### 12.5 Parameter Encoding
+
+PID parameters are transmitted using `int16 × 100` big-endian encoding:
+- Example: Kp=8.0 → 800 → 0x0320 → kp_high=0x03, kp_low=0x20
+- Range: -327.68 ~ +327.67
 
 ---
 
