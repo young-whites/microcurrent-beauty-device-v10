@@ -13,6 +13,7 @@
 |---------|------|--------|-------------|
 | V1.0 | 2026-06-29 | — | Initial version: NTC temperature acquisition, PID algorithm, software PWM heating control |
 | V1.1 | 2026-07-08 | — | Added NTC lookup table + linear interpolation algorithm based on manufacturer B-value table (-50~125°C, 176 points), dual-mode switch via NTC_USE_LOOKUP_TABLE macro |
+| V1.2 | 2026-07-14 | — | ADC acquisition migrated to RT-Thread ADC device framework; added handle-temperature mapping; protocol layer integrated PID temperature control; added initialization sequence; added temperature control mutex and safety protection descriptions |
 
 ---
 
@@ -334,6 +335,68 @@ temp_pid_set_target(hi, (float)temperature);
 
 - `temperature = 0` → Disable PID, turn off heating
 - `temperature = 1–41` → Set PID target temperature, enable control
+
+---
+
+## 8-Supplement: Handle-Temperature Control Mapping (LTS Version)
+
+### Handle-Temperature PID Mapping Table
+
+| Handle | PID Instance | Heater | Pump Control |
+|--------|-------------|--------|-------------|
+| A | TEMP_PID_SMALL | Small handle heater (PC12) | ❌ |
+| B | TEMP_PID_LARGE | Large handle heater (PC11) | ❌ |
+| C | None | ❌ | ✅ |
+
+**Temperature Control Mutex**: Only one handle's temperature control can run at a time. Setting handle A's temperature automatically disables handle B's PID, and vice versa.
+
+### ADC Acquisition Method
+
+Current version uses the **RT-Thread ADC device framework** for ADC acquisition:
+
+```c
+// Initialization
+rt_device_find("adc1")    // Find ADC device
+rt_adc_enable(adc_dev, ch) // Enable ADC channel
+
+// Reading
+rt_adc_read(adc_dev, ch, &value) // Read raw ADC value
+```
+
+> Note: Earlier versions used direct HAL ADC calls (HAL_ADC_ConfigChannel + HAL_ADC_Start + HAL_ADC_PollForConversion), now migrated to RT-Thread device framework.
+
+### Protocol Layer PID Integration
+
+`handle_temp_ctrl()` now calls `temp_pid_set_target()` instead of directly controlling GPIO.
+
+**Complete Temperature Control Flow**:
+
+```
+Host sends temp command → handle_temp_ctrl() → temp_pid_set_target(ch, temp)
+10ms timer → ntc_sensor_update() + temp_pid_tick()
+PID calculation → Software PWM → GPIO heater control
+```
+
+**Safety Protection Mechanisms**:
+
+| Protection | Threshold/Condition | Action |
+|------------|---------------------|--------|
+| Overheat hard protection | > 45°C | Force heater off |
+| Sensor fault | 10 consecutive ADC anomalies | Disable PID, turn off heater |
+| Integral anti-windup | I_MAX=80, I_MIN=-10 | Prevent integral windup |
+| Dead band | 0.3°C | Prevent relay chatter |
+| Output over-temp protection | Exceeds target by 1°C | Force output to 0 |
+
+### Initialization Sequence
+
+```c
+MX_ADC1_Init();          // CubeMX ADC hardware initialization
+ntc_sensor_init();       // NTC sensor module init (RT-Thread ADC framework)
+temp_pid_init();         // PID temperature control module init
+nnc6521_gpio_init();     // NNC6521 GPIO initialization
+nnc6521_init(CHIP_1);    // NNC6521 chip 1 initialization
+nnc6521_init(CHIP_2);    // NNC6521 chip 2 initialization
+```
 
 ### 8.2 Handle Switching Interaction
 

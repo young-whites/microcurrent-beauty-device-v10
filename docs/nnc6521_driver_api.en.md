@@ -609,9 +609,66 @@ Refer to `nnc6521_reg.h` for complete register addresses, union types, and struc
 
 ---
 
+---
+
+## SPI Communication Protocol (LTS Version)
+
+### SPI Write Protocol
+
+4 bytes: `[addr, cmd, data, 0x00]`
+
+| Byte | Content | Description |
+|------|---------|-------------|
+| Byte 0 | addr | Register address |
+| Byte 1 | cmd | Command byte: normal register `0x80`, waveform register `0xC0` |
+| Byte 2 | data | Data to write |
+| Byte 3 | 0x00 | Fixed padding byte |
+
+### SPI Read Protocol
+
+3 bytes: `[addr, cmd, dummy]`
+
+| Byte | Content | Description |
+|------|---------|-------------|
+| Byte 0 | addr | Register address |
+| Byte 1 | cmd | Command byte: normal register `0x00`, waveform register `0x40` |
+| Byte 2 | data | Return data |
+
+### Bit-Bang Timing (CPOL=0, CPHA=0)
+
+| Position | Delay | Description |
+|----------|-------|-------------|
+| After MOSI data setup | 4× NOP (~55ns) | Data setup time |
+| After SCLK rising edge | 8× NOP | High-level hold + extra margin |
+| After SCLK falling edge | 4× NOP | Low-level hold |
+| Before/after CSN toggle | 4× NOP each | Chip select edge margin |
+
+### CHIP_EN Reset Sequence
+
+```
+CHIP_EN LOW → 1ms → CHIP_EN HIGH → 5ms → Ready
+```
+
+---
+
+## Analog Frontend Enable Description
+
+`wavegen_config()` uses `|= 0x1F` to set all necessary bits in `ANA_ENABLE_REG`:
+
+| Bit | Name | Description |
+|-----|------|-------------|
+| bit0 | DRIVERA_AMP_EN | Driver amplifier enable |
+| bit1 | DRIVERA_CSAMP_EN | Driver amplifier current sense enable |
+| bit2 | COMP_EN | Comparator enable |
+| bit3 | IDAC_EN | IDAC enable |
+| bit4 | VDAC_EN | VDAC enable |
+
+---
+
 ## Revision History
 
 | Version | Date | Description |
 |---------|------|-------------|
 | 1.0 | 2026-06-16 | Initial version |
 | 1.1 | 2026-06-16 | Added register bit-level descriptions for initialization |
+| 1.1 | 2026-07-14 | LTS version: Fixed SPI write protocol (data at byte2), added NOP timing delays, fixed analog enable bits |

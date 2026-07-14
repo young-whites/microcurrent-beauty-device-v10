@@ -13,6 +13,7 @@
 |------|------|------|----------|
 | V1.0 | 2026-06-29 | — | 初始版本：NTC 温度采集、PID 算法、软件 PWM 加热控制 |
 | V1.1 | 2026-07-08 | — | 新增 NTC 查表+线性插值算法，基于厂商 B 值表（-50~125°C，176 点），通过 NTC_USE_LOOKUP_TABLE 宏切换查表/方程双模式 |
+| V1.2 | 2026-07-14 | — | ADC 采集改为 RT-Thread ADC 设备框架；新增手柄-温控映射表；协议层接入 PID 控温；新增初始化序列；新增温控互斥与安全保护说明 |
 
 ---
 
@@ -334,6 +335,68 @@ temp_pid_set_target(hi, (float)temperature);
 
 - `temperature = 0` → 禁用 PID，关闭加热
 - `temperature = 1~41` → 设置 PID 目标温度，启用控制
+
+---
+
+## 八-补充、手柄-温控映射（LTS 版本）
+
+### 手柄-温控 PID 映射表
+
+| 手柄 | 温控 PID 实例 | 加热器 | 泵控 |
+|------|---------------|--------|------|
+| A | TEMP_PID_SMALL | 小手柄加热 (PC12) | ❌ |
+| B | TEMP_PID_LARGE | 大手柄加热 (PC11) | ❌ |
+| C | 无 | ❌ | ✅ |
+
+**温控互斥**：同一时间只能有一个手柄的温控运行。设置 A 手柄温度时自动关闭 B 的 PID，反之亦然。
+
+### ADC 采集方式说明
+
+当前版本使用 **RT-Thread ADC 设备框架**进行 ADC 采集：
+
+```c
+// 初始化
+rt_device_find("adc1")    // 查找 ADC 设备
+rt_adc_enable(adc_dev, ch) // 使能 ADC 通道
+
+// 读取
+rt_adc_read(adc_dev, ch, &value) // 读取 ADC 原始值
+```
+
+> 注意：早期版本使用 HAL ADC 直接调用（HAL_ADC_ConfigChannel + HAL_ADC_Start + HAL_ADC_PollForConversion），现已迁移至 RT-Thread 设备框架。
+
+### 协议层接入 PID 控温
+
+`handle_temp_ctrl()` 改为调用 `temp_pid_set_target()`，不再直接控制 GPIO。
+
+**完整温控流程**：
+
+```
+上位机发温度指令 → handle_temp_ctrl() → temp_pid_set_target(ch, temp)
+10ms 定时器 → ntc_sensor_update() + temp_pid_tick()
+PID 计算 → 软件 PWM → GPIO 加热器控制
+```
+
+**安全保护机制**：
+
+| 保护项 | 阈值/条件 | 动作 |
+|--------|-----------|------|
+| 过热硬保护 | > 45°C | 强制关断加热 |
+| 传感器故障 | 连续 10 次 ADC 异常 | 禁用 PID，关闭加热 |
+| 积分抗饱和 | I_MAX=80, I_MIN=-10 | 防止积分项过大 |
+| 死区控制 | 0.3°C | 避免继电器抖动 |
+| 输出超温保护 | 超过目标温度 1°C | 强制输出 0 |
+
+### 初始化序列
+
+```c
+MX_ADC1_Init();          // CubeMX ADC 硬件初始化
+ntc_sensor_init();       // NTC 传感器模块初始化（RT-Thread ADC 框架）
+temp_pid_init();         // PID 控温模块初始化
+nnc6521_gpio_init();     // NNC6521 GPIO 初始化
+nnc6521_init(CHIP_1);    // NNC6521 芯片 1 初始化
+nnc6521_init(CHIP_2);    // NNC6521 芯片 2 初始化
+```
 
 ### 8.2 手柄切换联动
 
