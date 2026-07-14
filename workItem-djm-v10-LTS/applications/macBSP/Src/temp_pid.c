@@ -34,6 +34,33 @@
 #include "protocol.h"      /* For protocol_send_ack, FUNC_PID_AUTOTUNE */
 #include "main.h"       /* For GPIO pin definitions */
 #include <math.h>
+
+/* USART2 handle for VOFA+ debug output */
+extern UART_HandleTypeDef huart2;
+
+/* VOFA+ FireWater protocol: target,current,output,p,i,d\n */
+#define VOFA_ENABLE  1
+
+#if VOFA_ENABLE
+static void vofa_output(uint8_t pid_idx, float p_term, float i_term, float d_term)
+{
+    temp_pid_t *pid = temp_pid_get(pid_idx);
+    if (pid == RT_NULL) return;
+
+    char buf[128];
+    int len = snprintf(buf, sizeof(buf),
+                       "PID%d:%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
+                       pid_idx,
+                       pid->target_temp,
+                       pid->current_temp,
+                       pid->output,
+                       p_term, i_term, d_term);
+
+    if (len > 0 && len < (int)sizeof(buf)) {
+        HAL_UART_Transmit(&huart2, (uint8_t *)buf, len, 10);
+    }
+}
+#endif
 #include <rtthread.h>
 
 #ifndef M_PI
@@ -216,6 +243,11 @@ static void pid_compute(uint8_t pid_idx)
     }
 
     pid->output = output;
+
+    /* VOFA+ debug output */
+#if VOFA_ENABLE
+    vofa_output(pid_idx, p_term, i_term, d_term);
+#endif
 
     /* Save state for next iteration */
     pid->prev_error = error;
