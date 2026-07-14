@@ -15,6 +15,7 @@
 #include "nnc6521.h"
 #include "nnc6521_waveform_config.h"
 #include "nnc6521_waveform_config.h"
+#include "temp_pid.h"
 #include <string.h>
 
 /* ============================================================================
@@ -121,9 +122,9 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         }
     }
 
-    /* Turn off all heaters and pump */
-    bsp_heater_large_set(0);
-    bsp_heater_small_set(0);
+    /* Turn off all heaters via PID reset and pump */
+    temp_pid_set_target(TEMP_PID_LARGE, 0);
+    temp_pid_set_target(TEMP_PID_SMALL, 0);
     bsp_pump_set(0);
 
     /* Clear all handles' parameters */
@@ -227,15 +228,11 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.handle[hi].temperature = temperature;
 
-    /* Control heater hardware (on/off only, no PID) */
-    if (hi == 0) {
-        bsp_heater_large_set(temperature > 0 ? 1 : 0);  /* Handle A -> large heater */
-    } else {
-        bsp_heater_small_set(temperature > 0 ? 1 : 0);  /* Handle B -> small heater */
-    }
+    /* Set PID target temperature (PID handles heater PWM control) */
+    temp_pid_set_target(hi, (float)temperature);
 
-    rt_kprintf("[PROTO] Temp set: handle %c = %u C, heater %s\n",
-               'A' + hi, temperature, temperature > 0 ? "ON" : "OFF");
+    rt_kprintf("[PROTO] Temp set: handle %c = %u C, PID target=%.1f\n",
+               'A' + hi, temperature, (float)temperature);
 
     uint8_t ack_params[2] = { temperature, handle_id };
     protocol_send_ack(FUNC_TEMP_CTRL, ack_params, 2);
