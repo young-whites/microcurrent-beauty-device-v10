@@ -416,10 +416,12 @@ void waveform_update_amplitude(uint8_t chip_id, uint8_t channel,
     const waveform_config_t *cfg = &g_waveform_configs[waveform_id - 1];
     uint32_t actual_current = waveform_calc_current(waveform_id, percent);
 
+    /* Stop AWG before updating to prevent reading mixed data */
+    nnc6521_awg_enable_disable(chip_id, channel, 0);
+
     switch (cfg->gen_method) {
         case GEN_METHOD_PRELOADED:
         {
-            /* Update CI register directly (single register write) */
             uint8_t ci = 4;
             int addr = WG_REG_ADDR(channel, WG_DRIVE_REG_CTRL2_OFFSET);
             nnc6521_write_wave_reg(chip_id, addr, ci);
@@ -436,11 +438,13 @@ void waveform_update_amplitude(uint8_t chip_id, uint8_t channel,
             break;
 
         case GEN_METHOD_AMPLITUDE_MOD:
-            /* AM mode needs full reconfigure (no amplitude-only API) */
             waveform_apply(chip_id, channel, waveform_id, percent);
-            break;
+            return;  /* waveform_apply already re-enables AWG */
 
         default:
             break;
     }
+
+    /* Re-enable AWG after amplitude update */
+    nnc6521_awg_enable_disable(chip_id, channel, 1);
 }
