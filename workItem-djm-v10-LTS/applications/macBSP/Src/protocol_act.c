@@ -76,6 +76,22 @@ static void handle_apply_output(int handle_idx)
     uint32_t current_ma = waveform_calc_current(wf_id, percent);
     rt_kprintf("[PROTO] Applied waveform #%u on chip %d ch %d: %u%% (%lu mA)\n",
                wf_id, chip_id, channel, percent, current_ma);
+
+    /* DEBUG: Read back NNC6521 registers to verify SPI communication */
+    {
+        uint8_t pmu = nnc6521_read_reg(chip_id, 0x01);
+        uint8_t clk = nnc6521_read_reg(chip_id, 0x02);
+        uint8_t glob = nnc6521_read_reg(chip_id, 0x03);
+        uint8_t ana_en = nnc6521_read_reg(chip_id, (channel == 0) ? 0x41 : 0x42);
+        uint16_t ctrl_addr = WG_REG_ADDR(channel, 0x01);
+        uint8_t ctrl = nnc6521_read_wave_reg(chip_id, ctrl_addr);
+        uint16_t cfg_addr = WG_REG_ADDR(channel, 0x00);
+        uint8_t cfg = nnc6521_read_wave_reg(chip_id, cfg_addr);
+        rt_kprintf("[DEBUG] chip%d PMU=0x%02X CLK=0x%02X GLOB=0x%02X ANA_EN=0x%02X\n",
+                   chip_id, pmu, clk, glob, ana_en);
+        rt_kprintf("[DEBUG] ch%d CTRL=0x%02X (en=%d sel=%d) CFG=0x%02X\n",
+                   channel, ctrl, ctrl & 0x01, (ctrl >> 1) & 0x03, cfg);
+    }
 }
 
 /* ============================================================================

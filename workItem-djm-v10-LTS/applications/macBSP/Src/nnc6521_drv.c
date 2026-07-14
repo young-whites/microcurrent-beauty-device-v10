@@ -466,11 +466,15 @@ void nnc6521_wavegen_config(uint8_t chip_id,
     /* Disable AWG before modifying parameters */
     nnc6521_awg_enable_disable(chip_id, wf->CHANNEL, 0);
 
-    /* Enable analog channel */
+    /* Enable analog channel (read-modify-write to preserve VDAC/COMP/DRIVER bits) */
     if (wf->CHANNEL == WAVEFORM_GEN_CH0) {
-        nnc6521_write_reg(chip_id, ANA_ENABLE_REG_1_ADDR, 0x09);
+        uint8_t ana1 = nnc6521_read_reg(chip_id, ANA_ENABLE_REG_1_ADDR);
+        ana1 |= 0x09;  /* Set LVD_EN + reserved bit, preserve existing bits */
+        nnc6521_write_reg(chip_id, ANA_ENABLE_REG_1_ADDR, ana1);
     } else {
-        nnc6521_write_reg(chip_id, ANA_ENABLE_REG_2_ADDR, 0x09);
+        uint8_t ana2 = nnc6521_read_reg(chip_id, ANA_ENABLE_REG_2_ADDR);
+        ana2 |= 0x09;  /* Set LVD_EN + reserved bit, preserve existing bits */
+        nnc6521_write_reg(chip_id, ANA_ENABLE_REG_2_ADDR, ana2);
     }
 
     /* Point count register */
