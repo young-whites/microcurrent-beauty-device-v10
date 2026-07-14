@@ -39,4 +39,17 @@ void protocol_stop_waveform(void);
  */
 uint16_t protocol_map_percent_to_current(uint8_t waveform_id, uint8_t percent);
 
+/**
+ * @brief  Start periodic temperature reporting for the active handle.
+ *         Creates a 2-second RT-Thread software timer that sends FUNC_TEMP_REPORT.
+ * @param  handle_id  Handle ID (HANDLE_A / HANDLE_B / HANDLE_C).
+ */
+void protocol_temp_report_start(uint8_t handle_id);
+
+/**
+ * @brief  Stop periodic temperature reporting.
+ *         Deletes the software timer if active.
+ */
+void protocol_temp_report_stop(void);
+
 #endif /* __PROTOCOL_ACT_H__ */

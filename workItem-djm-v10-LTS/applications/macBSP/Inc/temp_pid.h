@@ -50,6 +50,26 @@ extern "C" {
 #define TEMP_PID_PWM_PERIOD     10          /* PWM period in control ticks (= 1000ms) */
 
 /* ============================================================================
+ *  PID Auto-Tune Configuration (Relay Feedback Method)
+ * ===========================================================================*/
+#define TEMP_PID_AUTOTUNE_HYSTERESIS  2.0f    /* Hysteresis temperature for relay oscillation (C) */
+#define TEMP_PID_AUTOTUNE_CYCLES     6       /* Number of oscillation cycles to measure */
+#define TEMP_PID_AUTOTUNE_TIMEOUT    12000   /* Auto-tune timeout in 100ms ticks (= 20 min) */
+
+/* ============================================================================
+ *  PID Operating Mode
+ * ===========================================================================*/
+typedef enum {
+    PID_MODE_NORMAL = 0,            /* Normal PID control */
+    PID_MODE_AUTOTUNE               /* Auto-tuning (relay feedback) */
+} pid_mode_t;
+
+/* Auto-tune result notification status */
+#define AUTOTUNE_STATUS_STARTED     0x00
+#define AUTOTUNE_STATUS_COMPLETE    0x01
+#define AUTOTUNE_STATUS_ERROR       0x02
+
+/* ============================================================================
  *  Temperature Limits
  * ===========================================================================*/
 #define TEMP_MIN_CELSIUS        0           /* Minimum target temperature */
@@ -169,6 +189,38 @@ temp_pid_t *temp_pid_get(uint8_t pid_idx);
  * @param  pid_idx    TEMP_PID_LARGE or TEMP_PID_SMALL.
  */
 void temp_pid_reset(uint8_t pid_idx);
+
+/* ============================================================================
+ *  PID Auto-Tune Functions
+ * ===========================================================================*/
+
+/**
+ * @brief  Start PID auto-tuning using relay feedback method.
+ *         Overrides normal PID control until tuning completes or is stopped.
+ * @param  pid_idx      TEMP_PID_LARGE or TEMP_PID_SMALL.
+ * @param  target_temp  Target temperature for oscillation center.
+ */
+void temp_pid_autotune_start(uint8_t pid_idx, float target_temp);
+
+/**
+ * @brief  Stop PID auto-tuning and restore normal PID mode.
+ * @param  pid_idx  TEMP_PID_LARGE or TEMP_PID_SMALL.
+ */
+void temp_pid_autotune_stop(uint8_t pid_idx);
+
+/**
+ * @brief  Check if auto-tuning is currently running.
+ * @param  pid_idx  TEMP_PID_LARGE or TEMP_PID_SMALL.
+ * @return 1 if auto-tuning is active, 0 otherwise.
+ */
+uint8_t temp_pid_autotune_is_running(uint8_t pid_idx);
+
+/**
+ * @brief  Get auto-tune completion status.
+ * @param  pid_idx  TEMP_PID_LARGE or TEMP_PID_SMALL.
+ * @return AUTOTUNE_STATUS_COMPLETE if done, 0 if still running or not started.
+ */
+uint8_t temp_pid_autotune_complete(uint8_t pid_idx);
 
 #ifdef __cplusplus
 }

@@ -16,6 +16,7 @@
 #include "nnc6521_waveform_config.h"
 #include "nnc6521_waveform_config.h"
 #include "temp_pid.h"
+#include "ntc_sensor.h"
 #include <string.h>
 
 /* ============================================================================
@@ -40,6 +41,78 @@ static const int8_t s_handle_to_pid[3] = {
     TEMP_PID_LARGE,  /* Handle B (1) -> large handle heater */
     -1               /* Handle C (2) -> no PID (pump only) */
 };
+
+/* NTC channel mapping: handle index -> NTC channel (-1 = no sensor) */
+static const int8_t s_handle_to_ntc[3] = {
+    NTC_CH_SMALL,    /* Handle A (0) -> small handle NTC */
+    NTC_CH_LARGE,    /* Handle B (1) -> large handle NTC */
+    -1               /* Handle C (2) -> no NTC */
+};
+
+/* ============================================================================
+ *  Temperature Periodic Report Timer
+ * ===========================================================================*/
+#define TEMP_REPORT_INTERVAL_MS  2000   /* 2 seconds */
+
+static rt_timer_t s_temp_report_timer = RT_NULL;
+static uint8_t s_temp_report_handle = 0;   /* Handle ID for temperature report */
+
+/**
+ * @brief  Timer callback for periodic temperature reporting.
+ *         Reads current temperature from the active handle's NTC sensor
+ *         and sends a FUNC_TEMP_REPORT frame to the host.
+ */
+static void temp_report_timer_cb(void *parameter)
+{
+    int hi = protocol_handle_index(s_temp_report_handle);
+    if (hi < 0 || hi > 1) return;   /* Only handles A/B have NTC */
+
+    int8_t ntc_ch = s_handle_to_ntc[hi];
+    if (ntc_ch < 0) return;
+
+    float temp = ntc_sensor_get_temperature((uint8_t)ntc_ch);
+
+    /* Pack temperature as 2 bytes: temp * 10 as uint16_t, big-endian */
+    int16_t temp_x10 = (int16_t)(temp * 10.0f);
+    uint8_t params[3];
+    params[0] = s_temp_report_handle;               /* handle_id */
+    params[1] = (uint8_t)((temp_x10 >> 8) & 0xFF); /* temp_high */
+    params[2] = (uint8_t)(temp_x10 & 0xFF);         /* temp_low */
+
+    protocol_send_ack(FUNC_TEMP_REPORT, params, 3);
+}
+
+void protocol_temp_report_start(uint8_t handle_id)
+{
+    /* Stop existing timer if running */
+    protocol_temp_report_stop();
+
+    s_temp_report_handle = handle_id;
+
+    if (s_temp_report_timer == RT_NULL) {
+        s_temp_report_timer = rt_timer_create("tmp_rpt",
+                                              temp_report_timer_cb,
+                                              RT_NULL,
+                                              rt_tick_from_millisecond(TEMP_REPORT_INTERVAL_MS),
+                                              RT_TIMER_FLAG_SOFT_TIMER | RT_TIMER_FLAG_PERIODIC);
+        if (s_temp_report_timer == RT_NULL) {
+            rt_kprintf("[PROTO] Failed to create temp report timer\n");
+            return;
+        }
+    }
+
+    rt_timer_start(s_temp_report_timer);
+    rt_kprintf("[PROTO] Temp report started for handle 0x%02X, interval=%dms\n",
+               handle_id, TEMP_REPORT_INTERVAL_MS);
+}
+
+void protocol_temp_report_stop(void)
+{
+    if (s_temp_report_timer != RT_NULL) {
+        rt_timer_stop(s_temp_report_timer);
+    }
+    rt_kprintf("[PROTO] Temp report stopped\n");
+}
 
 /**
  * @brief  Stop waveform output on the chip associated with the given handle.
@@ -119,6 +192,9 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     if (old_hi >= 0 && g_dev_state.is_running) {
         handle_stop_output(old_hi);
     }
+
+    /* Stop temperature periodic report */
+    protocol_temp_report_stop();
 
     /* Disable boost for the old handle */
     if (old_hi >= 0) {
@@ -324,11 +400,21 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
 
         g_dev_state.is_running = 1;
         handle_apply_output(hi);
+
+        /* Start periodic temperature reporting for handles with NTC */
+        if (hi <= 1) {
+            protocol_temp_report_start(g_dev_state.current_handle);
+        }
+
         rt_kprintf("[PROTO] Treatment started (boost enabled)\n");
     } else {
         /* Pause: stop waveform output, then disable boost */
         handle_stop_output(hi);
         g_dev_state.is_running = 0;
+
+        /* Stop periodic temperature reporting */
+        protocol_temp_report_stop();
+
         rt_kprintf("[PROTO] Treatment paused (boost disabled)\n");
     }
 
@@ -440,6 +526,67 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
  *  Frame Dispatch (Main Command Router)
  * ===========================================================================*/
 
+/**
+ * @brief  Handle 0x0C: PID parameter auto-tuning.
+ *         para[0..3] = target temperature as float (big-endian)
+ *
+ *         Request:  [target_temp_float]
+ *         Response: [status] [kp_h] [kp_l] [ki_h] [ki_l] [kd_h] [kd_l]
+ *         status: 0x00=started, 0x01=complete, 0x02=error
+ */
+static void handle_pid_autotune(const uint8_t *params, uint8_t param_len)
+{
+    if (param_len < 4) {
+        protocol_send_error(FUNC_PID_AUTOTUNE, ERR_PARAM);
+        return;
+    }
+
+    /* Parse target temperature as float (big-endian) */
+    uint8_t fbuf[4] = { params[3], params[2], params[1], params[0] };
+    float target_temp;
+    rt_memcpy(&target_temp, fbuf, sizeof(float));
+
+    /* Validate range */
+    if (target_temp < 20.0f || target_temp > TEMP_MAX_CELSIUS) {
+        uint8_t err_params[7] = { AUTOTUNE_STATUS_ERROR, 0,0,0,0,0,0 };
+        protocol_send_ack(FUNC_PID_AUTOTUNE, err_params, 7);
+        return;
+    }
+
+    /* Determine which PID index to tune based on current handle */
+    int hi = protocol_handle_index(g_dev_state.current_handle);
+    if (hi < 0 || hi > 1) {
+        /* Handle C has no heater */
+        uint8_t err_params[7] = { AUTOTUNE_STATUS_ERROR, 0,0,0,0,0,0 };
+        protocol_send_ack(FUNC_PID_AUTOTUNE, err_params, 7);
+        return;
+    }
+
+    int8_t pid_idx = s_handle_to_pid[hi];
+    if (pid_idx < 0) {
+        uint8_t err_params[7] = { AUTOTUNE_STATUS_ERROR, 0,0,0,0,0,0 };
+        protocol_send_ack(FUNC_PID_AUTOTUNE, err_params, 7);
+        return;
+    }
+
+    /* Check if already running autotune */
+    if (temp_pid_autotune_is_running(pid_idx)) {
+        uint8_t err_params[7] = { AUTOTUNE_STATUS_ERROR, 0,0,0,0,0,0 };
+        protocol_send_ack(FUNC_PID_AUTOTUNE, err_params, 7);
+        return;
+    }
+
+    /* Start autotune */
+    temp_pid_autotune_start(pid_idx, target_temp);
+
+    /* Send started notification */
+    uint8_t ack_params[7] = { AUTOTUNE_STATUS_STARTED, 0,0,0,0,0,0 };
+    protocol_send_ack(FUNC_PID_AUTOTUNE, ack_params, 7);
+
+    rt_kprintf("[PROTO] PID autotune started for handle %c, target=%.1f C\n",
+               'A' + hi, target_temp);
+}
+
 void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
 {
     uint8_t type  = buf[3];
@@ -470,6 +617,7 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
             case FUNC_AGING_MODE:    handle_aging_mode(&buf[6], param_len);   break;
             case FUNC_READ_VERSION:  handle_read_version();                   break;
             case FUNC_WAVEFORM_SEL:  handle_waveform_sel(&buf[6], param_len); break;
+            case FUNC_PID_AUTOTUNE:  handle_pid_autotune(&buf[6], param_len); break;
             case FUNC_SHUTDOWN_REQ:
             {
                 uint8_t para0 = (param_len >= 1) ? buf[6] : 0x00;
@@ -501,6 +649,9 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
  */
 void protocol_stop_waveform(void)
 {
+    /* Stop temperature periodic report */
+    protocol_temp_report_stop();
+
     /* Disable AWG on all channels of both chips */
     nnc6521_awg_enable_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0, 0);
     nnc6521_awg_enable_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1, 0);

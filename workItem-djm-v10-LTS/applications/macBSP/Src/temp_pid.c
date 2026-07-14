@@ -31,13 +31,40 @@
 
 #include "temp_pid.h"
 #include "ntc_sensor.h"
+#include "protocol.h"      /* For protocol_send_ack, FUNC_PID_AUTOTUNE */
 #include "main.h"       /* For GPIO pin definitions */
 #include <math.h>
+#include <rtthread.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
+
+/* ============================================================================
+ *  Auto-Tune State Structure
+ * ===========================================================================*/
+typedef struct {
+    pid_mode_t mode;                /* Current operating mode */
+    float target_temp;              /* Oscillation center temperature */
+    float hysteresis;               /* Relay hysteresis (half-amplitude) */
+    uint8_t cycle_count;            /* Completed oscillation cycles */
+    uint8_t heater_state;           /* Relay output: 0=off, 1=on */
+    uint32_t cycle_start_tick;      /* Tick at last zero-crossing */
+    uint32_t period_sum;            /* Sum of measured periods (in ticks) */
+    float temp_high;                /* Peak temperature in current cycle */
+    float temp_low;                 /* Trough temperature in current cycle */
+    float amplitude_sum;            /* Sum of measured amplitudes */
+    uint8_t rising;                 /* 1 if temperature is rising */
+    uint8_t complete;               /* 1 if tuning is finished */
+    uint8_t error;                  /* 1 if tuning failed */
+    uint32_t timeout_counter;       /* Timeout watchdog */
+} autotune_state_t;
 
 /* ============================================================================
  *  PID Instance Data
  * ===========================================================================*/
 static temp_pid_t s_pid[TEMP_PID_COUNT];
+static autotune_state_t s_autotune[TEMP_PID_COUNT];
 
 /* GPIO port/pin mapping for heater control */
 static GPIO_TypeDef * const s_heater_port[TEMP_PID_COUNT] = {
@@ -267,6 +294,11 @@ int temp_pid_init(void)
         s_pid[i].sensor_fault = 0;
         s_pid[i].fault_count = 0;
 
+        /* Initialize autotune state */
+        rt_memset(&s_autotune[i], 0, sizeof(autotune_state_t));
+        s_autotune[i].mode = PID_MODE_NORMAL;
+        s_autotune[i].hysteresis = TEMP_PID_AUTOTUNE_HYSTERESIS;
+
         /* Ensure heater is off */
         heater_set(i, 0);
     }
@@ -365,6 +397,226 @@ void temp_pid_reset(uint8_t pid_idx)
 }
 
 /* ============================================================================
+ *  PID Auto-Tune Public API
+ * ===========================================================================*/
+
+void temp_pid_autotune_start(uint8_t pid_idx, float target_temp)
+{
+    if (pid_idx >= TEMP_PID_COUNT) return;
+
+    /* Validate target temperature range */
+    if (target_temp < 20.0f || target_temp > TEMP_MAX_CELSIUS) {
+        rt_kprintf("[PID-AT] Handle %c invalid target %.1f C\n",
+                   'A' + pid_idx, target_temp);
+        return;
+    }
+
+    autotune_state_t *at = &s_autotune[pid_idx];
+    temp_pid_t *pid = &s_pid[pid_idx];
+
+    /* Stop normal PID control */
+    pid->enabled = 0;
+    pid->output = 0;
+    pid->integral = 0;
+    heater_set(pid_idx, 0);
+
+    /* Initialize autotune state */
+    rt_memset(at, 0, sizeof(autotune_state_t));
+    at->mode = PID_MODE_AUTOTUNE;
+    at->target_temp = target_temp;
+    at->hysteresis = TEMP_PID_AUTOTUNE_HYSTERESIS;
+    at->heater_state = 1;           /* Start with heater ON */
+    at->rising = 1;
+    at->cycle_start_tick = 0;
+
+    /* Start heating immediately */
+    heater_set(pid_idx, 1);
+
+    rt_kprintf("[PID-AT] Handle %c autotune STARTED, target=%.1f C, hyst=%.1f C\n",
+               'A' + pid_idx, target_temp, at->hysteresis);
+}
+
+void temp_pid_autotune_stop(uint8_t pid_idx)
+{
+    if (pid_idx >= TEMP_PID_COUNT) return;
+
+    autotune_state_t *at = &s_autotune[pid_idx];
+
+    /* Turn off heater and reset mode */
+    heater_set(pid_idx, 0);
+    at->mode = PID_MODE_NORMAL;
+
+    rt_kprintf("[PID-AT] Handle %c autotune STOPPED\n", 'A' + pid_idx);
+}
+
+uint8_t temp_pid_autotune_is_running(uint8_t pid_idx)
+{
+    if (pid_idx >= TEMP_PID_COUNT) return 0;
+    return (s_autotune[pid_idx].mode == PID_MODE_AUTOTUNE) ? 1 : 0;
+}
+
+uint8_t temp_pid_autotune_complete(uint8_t pid_idx)
+{
+    if (pid_idx >= TEMP_PID_COUNT) return 0;
+    return s_autotune[pid_idx].complete;
+}
+
+/* ============================================================================
+ *  Internal: Auto-Tune Tick (Relay Feedback Method)
+ * ===========================================================================*/
+
+/**
+ * @brief  Auto-tune control tick for one PID instance.
+ *         Uses relay feedback (bang-bang) to induce sustained oscillation.
+ *         Measures period and amplitude over TEMP_PID_AUTOTUNE_CYCLES cycles,
+ *         then calculates PID parameters using Ziegler-Nichols formula.
+ *
+ * @param  pid_idx  PID instance index.
+ */
+static void autotune_tick(uint8_t pid_idx)
+{
+    autotune_state_t *at = &s_autotune[pid_idx];
+    temp_pid_t *pid = &s_pid[pid_idx];
+    uint8_t ntc_ch = s_ntc_channel[pid_idx];
+
+    /* Read current temperature */
+    float temp = ntc_sensor_get_temperature(ntc_ch);
+    pid->current_temp = temp;
+
+    /* Safety check: overheat protection still active during autotune */
+    if (temp > TEMP_OVERHEAT_CELSIUS) {
+        heater_set(pid_idx, 0);
+        at->error = 1;
+        at->mode = PID_MODE_NORMAL;
+        pid->enabled = 0;
+        uint8_t err[7] = { AUTOTUNE_STATUS_ERROR, 0,0,0,0,0,0 };
+        protocol_send_ack(FUNC_PID_AUTOTUNE, err, 7);
+        rt_kprintf("[PID-AT] Handle %c ABORT: overheat %.1f C\n",
+                   'A' + pid_idx, temp);
+        return;
+    }
+
+    /* Timeout watchdog */
+    at->timeout_counter++;
+    if (at->timeout_counter > TEMP_PID_AUTOTUNE_TIMEOUT) {
+        heater_set(pid_idx, 0);
+        at->error = 1;
+        at->mode = PID_MODE_NORMAL;
+        uint8_t err[7] = { AUTOTUNE_STATUS_ERROR, 0,0,0,0,0,0 };
+        protocol_send_ack(FUNC_PID_AUTOTUNE, err, 7);
+        rt_kprintf("[PID-AT] Handle %c ABORT: timeout\n", 'A' + pid_idx);
+        return;
+    }
+
+    /* Relay feedback control: bang-bang with hysteresis */
+    float upper = at->target_temp + at->hysteresis;
+    float lower = at->target_temp - at->hysteresis;
+
+    if (at->heater_state) {
+        /* Heater ON: turn OFF when temp exceeds upper threshold */
+        if (temp >= upper) {
+            heater_set(pid_idx, 0);
+            at->heater_state = 0;
+            at->temp_high = temp;
+            at->rising = 0;
+        }
+    } else {
+        /* Heater OFF: turn ON when temp drops below lower threshold */
+        if (temp <= lower) {
+            heater_set(pid_idx, 1);
+            at->heater_state = 1;
+            at->temp_low = temp;
+
+            /* Falling -> Rising transition completes one full cycle */
+            if (!at->rising) {
+                uint32_t now = rt_tick_get();
+                if (at->cycle_start_tick > 0) {
+                    uint32_t period = now - at->cycle_start_tick;
+                    at->period_sum += period;
+                    at->amplitude_sum += (at->temp_high - at->temp_low);
+                    at->cycle_count++;
+                    rt_kprintf("[PID-AT] Handle %c cycle %d: period=%u ticks, "
+                               "amp=%.2f C\n",
+                               'A' + pid_idx, at->cycle_count,
+                               (unsigned)period,
+                               at->temp_high - at->temp_low);
+                }
+                at->cycle_start_tick = now;
+            }
+            at->rising = 1;
+        }
+    }
+
+    /* Check if enough cycles have been measured */
+    if (at->cycle_count >= TEMP_PID_AUTOTUNE_CYCLES) {
+        float Tu_sec = (float)at->period_sum / at->cycle_count
+                       / (float)RT_TICK_PER_SECOND;
+        float Au = at->amplitude_sum / at->cycle_count;
+
+        /* Ziegler-Nichols relay method:
+         *   Ku = 4*d / (pi * a)
+         *   d = output amplitude (100% = full on/off, so d=100)
+         *   a = temperature oscillation half-amplitude (peak-to-peak / 2)
+         *   Kp = 0.6 * Ku
+         *   Ki = 2 * Kp / Tu   (integral gain per second)
+         *   Kd = Kp * Tu / 8   (derivative gain)
+         */
+        float a = Au / 2.0f;
+        float d = 100.0f;
+
+        if (a < 0.1f) {
+            heater_set(pid_idx, 0);
+            at->error = 1;
+            at->mode = PID_MODE_NORMAL;
+            uint8_t err[7] = { AUTOTUNE_STATUS_ERROR, 0,0,0,0,0,0 };
+            protocol_send_ack(FUNC_PID_AUTOTUNE, err, 7);
+            rt_kprintf("[PID-AT] Handle %c ERROR: amplitude too small (%.3f)\n",
+                       'A' + pid_idx, a);
+            return;
+        }
+
+        float Ku = (4.0f * d) / (M_PI * a);
+        float Kp = 0.6f * Ku;
+        float Ki_per_sec = 2.0f * Kp / Tu_sec;
+        float Kd = Kp * Tu_sec / 8.0f;
+
+        /* Convert Ki from per-second to per-control-period (100ms) */
+        float Ki = Ki_per_sec * (TEMP_PID_CTRL_PERIOD * 10.0f / 1000.0f);
+
+        /* Apply new PID parameters */
+        pid->kp = Kp;
+        pid->ki = Ki;
+        pid->kd = Kd;
+        pid->integral = 0;
+        pid->prev_error = 0;
+        pid->prev_measurement = temp;
+
+        at->complete = 1;
+        at->mode = PID_MODE_NORMAL;
+        heater_set(pid_idx, 0);
+
+        /* Send autotune complete notification via protocol */
+        /* Pack Kp, Ki, Kd as 16-bit values (x100) big-endian */
+        int16_t kp_x100 = (int16_t)(Kp * 100.0f);
+        int16_t ki_x100 = (int16_t)(Ki * 100.0f);
+        int16_t kd_x100 = (int16_t)(Kd * 100.0f);
+        uint8_t notify[7];
+        notify[0] = AUTOTUNE_STATUS_COMPLETE;
+        notify[1] = (uint8_t)((kp_x100 >> 8) & 0xFF);
+        notify[2] = (uint8_t)(kp_x100 & 0xFF);
+        notify[3] = (uint8_t)((ki_x100 >> 8) & 0xFF);
+        notify[4] = (uint8_t)(ki_x100 & 0xFF);
+        notify[5] = (uint8_t)((kd_x100 >> 8) & 0xFF);
+        notify[6] = (uint8_t)(kd_x100 & 0xFF);
+        protocol_send_ack(FUNC_PID_AUTOTUNE, notify, 7);
+
+        rt_kprintf("[PID-AT] Handle %c DONE: Tu=%.2fs Au=%.2fC "
+                   "Ku=%.2f => Kp=%.2f Ki=%.4f Kd=%.2f\n",
+                   'A' + pid_idx, Tu_sec, Au, Ku, Kp, Ki, Kd);
+    }
+}
+
+/* ============================================================================
  *  Main PID Tick (called from 10ms system timer)
  * ===========================================================================*/
 
@@ -373,9 +625,18 @@ void temp_pid_tick(void)
     for (uint8_t i = 0; i < TEMP_PID_COUNT; i++) {
         temp_pid_t *pid = &s_pid[i];
 
+        /* Auto-tune mode takes priority */
+        if (s_autotune[i].mode == PID_MODE_AUTOTUNE) {
+            pid->tick_divider++;
+            if (pid->tick_divider >= TEMP_PID_CTRL_PERIOD) {
+                pid->tick_divider = 0;
+                autotune_tick(i);
+            }
+            continue;
+        }
+
         /* Skip if not enabled */
         if (!pid->enabled) {
-            /* Ensure heater stays off when disabled */
             if (pid->heater_on) {
                 heater_set(i, 0);
             }
@@ -386,11 +647,7 @@ void temp_pid_tick(void)
         pid->tick_divider++;
         if (pid->tick_divider >= TEMP_PID_CTRL_PERIOD) {
             pid->tick_divider = 0;
-
-            /* Compute PID output */
             pid_compute(i);
-
-            /* Update software PWM */
             pwm_update(i);
         }
     }

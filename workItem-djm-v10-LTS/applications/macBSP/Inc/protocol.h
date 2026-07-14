@@ -53,6 +53,8 @@ extern "C" {
 #define FUNC_READ_VERSION   0x08        /* Read firmware version */
 #define FUNC_WAVEFORM_SEL   0x09        /* Waveform selection (1~9) */
 #define FUNC_SHUTDOWN_REQ   0x0A        /* Shutdown request (device -> upper machine) */
+#define FUNC_TEMP_REPORT    0x0B        /* Temperature periodic report (device -> host) */
+#define FUNC_PID_AUTOTUNE   0x0C        /* PID parameter auto-tuning */
 
 /* ============================================================================
  *  Handle ID Definitions
