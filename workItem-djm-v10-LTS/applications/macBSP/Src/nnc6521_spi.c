@@ -93,6 +93,20 @@ void nnc6521_gpio_init(void)
         gpio.Pin = p->intb_pin;
         HAL_GPIO_Init(p->intb_port, &gpio);
     }
+
+    /* DEBUG: Toggle SCLK pins to verify GPIO is working
+     * Use oscilloscope/multimeter on PC7 (Chip1 SCLK) and PB11 (Chip2 SCLK)
+     * Remove this block after verification! */
+    rt_kprintf("[NNC6521] GPIO init done. Toggling SCLK for 5 seconds...\n");
+    for (int i = 0; i < 5000; i++) {
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
+        rt_thread_mdelay(1);
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_RESET);
+        rt_thread_mdelay(1);
+    }
+    rt_kprintf("[NNC6521] SCLK toggle done. Check PC7/PB11 with scope.\n");
 }
 
 /* ============================================================================
