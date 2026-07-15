@@ -53,8 +53,7 @@ static void vofa_output(uint8_t pid_idx, float p_term, float i_term, float d_ter
 
     char buf[128];
     int len = snprintf(buf, sizeof(buf),
-                       "PID%d:%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
-                       pid_idx,
+                       "any:%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
                        pid->target_temp,
                        pid->current_temp,
                        pid->output,
