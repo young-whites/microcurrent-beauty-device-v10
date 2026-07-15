@@ -48,6 +48,9 @@ static void vofa_output(uint8_t pid_idx, float p_term, float i_term, float d_ter
     temp_pid_t *pid = temp_pid_get(pid_idx);
     if (pid == RT_NULL) return;
 
+    /* Only output the active (enabled) PID, skip inactive */
+    if (!pid->enabled) return;
+
     char buf[128];
     int len = snprintf(buf, sizeof(buf),
                        "PID%d:%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n",
