@@ -38,15 +38,18 @@ extern "C" {
 /* ============================================================================
  *  PID Controller Configuration
  * ===========================================================================*/
-#define TEMP_PID_KP             8.0f        /* Proportional gain */
-#define TEMP_PID_KI             0.15f       /* Integral gain (per control period) */
-#define TEMP_PID_KD             3.0f        /* Derivative gain */
+#define TEMP_PID_KP             4.0f        /* Proportional gain */
+#define TEMP_PID_KI             0.08f       /* Integral gain (per control period) */
+#define TEMP_PID_KD             5.0f        /* Derivative gain */
 #define TEMP_PID_OUT_MIN        0           /* Minimum output (0%) */
 #define TEMP_PID_OUT_MAX        100         /* Maximum output (100%) */
 #define TEMP_PID_I_MAX          80.0f       /* Integral anti-windup clamp */
 #define TEMP_PID_I_MIN          -10.0f      /* Integral anti-windup lower clamp */
 #define TEMP_PID_DEADBAND       0.3f        /* Dead band (Celsius) - avoid chatter */
 #define TEMP_PID_CTRL_PERIOD    10          /* Control period in 10ms ticks (= 100ms) */
+#define TEMP_PID_PREHEAT_MAX_POWER    20    /* Max output (%) during preheat */
+#define TEMP_PID_PREHEAT_THRESHOLD    3.0f  /* Switch to PID when within this many C */
+#define TEMP_PID_PREHEAT_RAMP_STEP    2     /* Power increase (%) per control cycle */
 #define TEMP_PID_PWM_PERIOD     10          /* PWM period in control ticks (= 1000ms) */
 
 /* ============================================================================
@@ -114,6 +117,9 @@ typedef struct {
     uint8_t tick_divider;       /* Tick divider for control period */
     uint8_t sensor_fault;       /* Sensor fault flag (1 = fault detected) */
     uint32_t fault_count;       /* Consecutive fault reading count */
+    /* Preheat phase state */
+    uint8_t preheat_active;     /* 1 = in preheat phase */
+    uint8_t preheat_power;      /* Current preheat power limit (0~PREHEAT_MAX_POWER) */
 } temp_pid_t;
 
 /* ============================================================================

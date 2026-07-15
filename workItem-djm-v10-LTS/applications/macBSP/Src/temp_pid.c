@@ -195,16 +195,52 @@ static void pid_compute(uint8_t pid_idx)
     /* Safety check */
     if (!safety_check(pid_idx)) {
         pid->output = 0;
+    pid->preheat_active = 0;
+    pid->preheat_power = 0;
         return;
     }
 
     /* If target is 0, heating is disabled */
     if (pid->target_temp <= 0.0f) {
         pid->output = 0;
+    pid->preheat_active = 0;
+    pid->preheat_power = 0;
         pid->integral = 0;
         pid->prev_error = 0;
         pid->prev_measurement = pid->current_temp;
         return;
+    }
+
+
+    /* ---- Preheat Phase ---- */
+    /* When temp is far from target, limit power for smooth rise.
+     * Gradually ramp up power as temperature approaches target.
+     * Switch to full PID when within PREHEAT_THRESHOLD of target. */
+    if (pid->preheat_active) {
+        float error_pre = pid->target_temp - pid->current_temp;
+
+        /* Switch to PID when close enough to target */
+        if (error_pre <= TEMP_PID_PREHEAT_THRESHOLD) {
+            pid->preheat_active = 0;
+            /* Reset integral for clean PID start */
+            pid->integral = 0;
+            pid->prev_measurement = pid->current_temp;
+            rt_kprintf("[PID] Handle %c preheat -> PID at %.1f C
+",
+                       'A' + pid_idx, pid->current_temp);
+        } else {
+            /* Ramp up preheat power gradually */
+            if (pid->preheat_power < TEMP_PID_PREHEAT_MAX_POWER) {
+                pid->preheat_power += TEMP_PID_PREHEAT_RAMP_STEP;
+                if (pid->preheat_power > TEMP_PID_PREHEAT_MAX_POWER) {
+                    pid->preheat_power = TEMP_PID_PREHEAT_MAX_POWER;
+                }
+            }
+            pid->output = (float)pid->preheat_power;
+            pid->prev_error = error_pre;
+            pid->prev_measurement = pid->current_temp;
+            return;  /* Skip full PID computation during preheat */
+        }
     }
 
     /* Calculate error */
@@ -324,6 +360,8 @@ int temp_pid_init(void)
 
         /* Clear control state */
         s_pid[i].enabled = 0;
+        s_pid[i].preheat_active = 0;
+        s_pid[i].preheat_power = 0;
         s_pid[i].tick_divider = 0;
         s_pid[i].sensor_fault = 0;
         s_pid[i].fault_count = 0;
@@ -339,7 +377,7 @@ int temp_pid_init(void)
 
     rt_kprintf("[PID] Temperature PID controller initialized, instances=%d\n", TEMP_PID_COUNT);
     s_pid_initialized = 1;
-    rt_kprintf("[PID] Kp=%.1f Ki=%.3f Kd=%.1f, CtrlPeriod=%dms, PWMPeriod=%dms\n",
+    rt_kprintf("[PID] Kp=%.1f Ki=%.4f Kd=%.1f, CtrlPeriod=%dms, PWMPeriod=%dms\n",
                TEMP_PID_KP, TEMP_PID_KI, TEMP_PID_KD,
                TEMP_PID_CTRL_PERIOD * 10, TEMP_PID_PWM_PERIOD * TEMP_PID_CTRL_PERIOD * 10);
     return RT_EOK;
@@ -365,11 +403,15 @@ void temp_pid_set_target(uint8_t pid_idx, float temp_c)
     /* Enable/disable based on target */
     if (temp_c > 0) {
         pid->enabled = 1;
+        pid->preheat_active = 1;
+        pid->preheat_power = TEMP_PID_PREHEAT_RAMP_STEP;
         pid->sensor_fault = 0;
         pid->fault_count = 0;
     } else {
         pid->enabled = 0;
         pid->output = 0;
+    pid->preheat_active = 0;
+    pid->preheat_power = 0;
         heater_set(pid_idx, 0);
     }
 
@@ -427,6 +469,8 @@ void temp_pid_reset(uint8_t pid_idx)
     pid->prev_error = 0;
     pid->prev_measurement = pid->current_temp;
     pid->output = 0;
+    pid->preheat_active = 0;
+    pid->preheat_power = 0;
     pid->pwm_counter = 0;
     heater_set(pid_idx, 0);
 }
@@ -452,6 +496,8 @@ void temp_pid_autotune_start(uint8_t pid_idx, float target_temp)
     /* Stop normal PID control */
     pid->enabled = 0;
     pid->output = 0;
+    pid->preheat_active = 0;
+    pid->preheat_power = 0;
     pid->integral = 0;
     heater_set(pid_idx, 0);
 
