@@ -225,8 +225,7 @@ static void pid_compute(uint8_t pid_idx)
             /* Reset integral for clean PID start */
             pid->integral = 0;
             pid->prev_measurement = pid->current_temp;
-            rt_kprintf("[PID] Handle %c preheat -> PID at %.1f C
-",
+            rt_kprintf("[PID] Handle %c preheat -> PID at %.1f C\n",
                        'A' + pid_idx, pid->current_temp);
         } else {
             /* Ramp up preheat power gradually */
