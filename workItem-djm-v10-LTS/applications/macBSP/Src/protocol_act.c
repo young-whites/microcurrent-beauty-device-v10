@@ -310,6 +310,14 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
+    /* Reject if requested handle is not the current active handle */
+    if (handle_id != g_dev_state.current_handle) {
+        rt_kprintf("[PROTO] Temp set rejected: handle %c is not active (current=%c)\n",
+                   'A' + hi, 'A' + protocol_handle_index(g_dev_state.current_handle));
+        protocol_send_error(FUNC_TEMP_CTRL, ERR_PARAM);
+        return;
+    }
+
     g_dev_state.handle[hi].temperature = temperature;
 
     /* Get PID index for this handle */
