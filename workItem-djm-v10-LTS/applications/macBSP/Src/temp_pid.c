@@ -104,8 +104,8 @@ static const uint16_t s_heater_pin[TEMP_PID_COUNT] = {
 
 /* NTC channel mapping: PID index -> NTC channel */
 static const uint8_t s_ntc_channel[TEMP_PID_COUNT] = {
-    NTC_CH_SMALL,   /* TEMP_PID_LARGE -> NTC_CH_SMALL (physical: large handle on PC1) */
-    NTC_CH_LARGE    /* TEMP_PID_SMALL -> NTC_CH_LARGE (physical: small handle on PC0) */
+    NTC_CH_LARGE,   /* TEMP_PID_LARGE -> NTC_CH_LARGE */
+    NTC_CH_SMALL    /* TEMP_PID_SMALL -> NTC_CH_SMALL */
 };
 
 /* ============================================================================
