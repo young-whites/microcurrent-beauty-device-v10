@@ -329,7 +329,7 @@ uint16_t ntc_sensor_read_adc(uint8_t channel)
 void ntc_sensor_update(void)
 {
     if (!s_ntc_initialized) return;
-    static uint8_t dbg_cnt = 0;
+    // static uint8_t dbg_cnt = 0;  /* disabled - use VOFA+ for monitoring */
     for (uint8_t ch = 0; ch < NTC_CH_COUNT; ch++) {
         /* Read raw ADC */
         uint16_t raw = ntc_sensor_read_adc(ch);
@@ -341,13 +341,13 @@ void ntc_sensor_update(void)
         s_ntc[ch].temperature = ntc_adc_to_temperature(filtered);
         s_ntc[ch].resistance = ntc_adc_to_resistance(filtered);
     }
-    /* Debug: print raw ADC values every ~2s */
-    if (++dbg_cnt >= 200) {
-        dbg_cnt = 0;
-        rt_kprintf("[NTC] ch0(PC0) raw=%u temp=%.1f | ch1(PC1) raw=%u temp=%.1f\n",
-                   s_ntc[0].adc_raw, s_ntc[0].temperature,
-                   s_ntc[1].adc_raw, s_ntc[1].temperature);
-    }
+    /* Debug: print raw ADC values every ~2s (disabled - use VOFA+ for monitoring) */
+    // if (++dbg_cnt >= 200) {
+    //     dbg_cnt = 0;
+    //     rt_kprintf("[NTC] ch0(PC0) raw=%u temp=%.1f | ch1(PC1) raw=%u temp=%.1f\n",
+    //                s_ntc[0].adc_raw, s_ntc[0].temperature,
+    //                s_ntc[1].adc_raw, s_ntc[1].temperature);
+    // }
 }
 
 float ntc_sensor_get_temperature(uint8_t channel)
