@@ -423,11 +423,8 @@ void temp_pid_set_target(uint8_t pid_idx, float temp_c)
         pid->sensor_fault = 0;
         pid->fault_count = 0;
     } else {
-        pid->enabled = 0;
-        pid->output = 0;
-    pid->preheat_active = 0;
-    pid->preheat_power = 0;
-        heater_set(pid_idx, 0);
+        /* Full reset: clean all PID state including integral, PWM counter, etc. */
+        temp_pid_full_reset(pid_idx);
     }
 
     /* PID[0]=LARGE=Handle B, PID[1]=SMALL=Handle A */
@@ -490,6 +487,29 @@ void temp_pid_reset(uint8_t pid_idx)
     pid->preheat_power = 0;
     pid->pwm_counter = 0;
     heater_set(pid_idx, 0);
+}
+
+void temp_pid_full_reset(uint8_t pid_idx)
+{
+    if (pid_idx >= TEMP_PID_COUNT) return;
+    temp_pid_t *pid = &s_pid[pid_idx];
+
+    /* Turn off heater first */
+    heater_set(pid_idx, 0);
+
+    /* Clear all PID state */
+    pid->integral = 0;
+    pid->prev_error = 0;
+    pid->prev_measurement = 0;
+    pid->output = 0;
+    pid->pwm_counter = 0;
+    pid->pwm_duty = 0;
+    pid->tick_divider = 0;
+    pid->enabled = 0;
+    pid->sensor_fault = 0;
+    pid->fault_count = 0;
+    pid->preheat_active = 0;
+    pid->preheat_power = 0;
 }
 
 /* ============================================================================

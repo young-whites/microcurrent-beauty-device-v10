@@ -197,6 +197,14 @@ temp_pid_t *temp_pid_get(uint8_t pid_idx);
  */
 void temp_pid_reset(uint8_t pid_idx);
 
+/**
+ * @brief  Full PID state reset (for handle switching).
+ *         Clears integral, derivative history, PWM counter, sensor fault,
+ *         preheat state, and turns off heater.
+ * @param  pid_idx  TEMP_PID_LARGE or TEMP_PID_SMALL.
+ */
+void temp_pid_full_reset(uint8_t pid_idx);
+
 /* ============================================================================
  *  PID Auto-Tune Functions
  * ===========================================================================*/
