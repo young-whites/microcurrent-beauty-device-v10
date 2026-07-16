@@ -186,12 +186,12 @@ static void protocol_build_and_send(uint8_t type, uint8_t state, uint8_t func,
         rt_mutex_release(s_tx_mutex);
     }
 
-    /* Debug log */
-    rt_kprintf("[PROTO] TX: ");
+    /* Debug log - disabled to keep VOFA+ output clean */
+    /* rt_kprintf("[PROTO] TX: ");
     for (uint8_t i = 0; i < total; i++) {
         rt_kprintf("%02X ", tx_buf[i]);
     }
-    rt_kprintf("\n");
+    rt_kprintf("\n"); */
 }
 
 void protocol_send_ack(uint8_t func, const uint8_t *params, uint8_t param_len)
