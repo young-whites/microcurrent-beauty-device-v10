@@ -234,6 +234,10 @@ static void pid_compute(uint8_t pid_idx)
             pid->output = (float)pid->preheat_power;
             pid->prev_error = error_pre;
             pid->prev_measurement = pid->current_temp;
+#if VOFA_ENABLE
+            /* Still output during preheat for debugging */
+            vofa_output(pid_idx, 0, 0, 0);
+#endif
             return;  /* Skip full PID computation during preheat */
         }
     }
