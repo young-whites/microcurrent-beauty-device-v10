@@ -47,9 +47,9 @@ extern "C" {
 #define TEMP_PID_I_MIN          -10.0f      /* Integral anti-windup lower clamp */
 #define TEMP_PID_DEADBAND       0.3f        /* Dead band (Celsius) - avoid chatter */
 #define TEMP_PID_CTRL_PERIOD    10          /* Control period in 10ms ticks (= 100ms) */
-#define TEMP_PID_PREHEAT_MAX_POWER    20    /* Max output (%) during preheat */
+#define TEMP_PID_PREHEAT_MAX_POWER    12    /* Max output (%) during preheat */
 #define TEMP_PID_PREHEAT_THRESHOLD    3.0f  /* Switch to PID when within this many C */
-#define TEMP_PID_PREHEAT_RAMP_STEP    2     /* Power increase (%) per control cycle */
+#define TEMP_PID_PREHEAT_RAMP_STEP    1     /* Power increase (%) per control cycle */
 #define TEMP_PID_PWM_PERIOD     10          /* PWM period in control ticks (= 1000ms) */
 
 /* ============================================================================
