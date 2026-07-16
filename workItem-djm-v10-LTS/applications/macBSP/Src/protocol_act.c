@@ -340,8 +340,9 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
     /* Set PID target for this handle */
     temp_pid_set_target(pid_idx, (float)temperature);
 
-    rt_kprintf("[PROTO] Temp set: handle %c = %u C, PID[%d] target=%.1f\n",
-               'A' + hi, temperature, pid_idx, (float)temperature);
+    rt_kprintf("[PROTO] Temp set: handle %c = %u C, PID[%d] target=%.1f, enabled=%d\n",
+               'A' + hi, temperature, pid_idx, (float)temperature,
+               temp_pid_is_enabled(pid_idx));
 
     uint8_t ack_params[2] = { temperature, handle_id };
     protocol_send_ack(FUNC_TEMP_CTRL, ack_params, 2);

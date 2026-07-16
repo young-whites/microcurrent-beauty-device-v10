@@ -151,8 +151,9 @@ static uint8_t safety_check(uint8_t pid_idx)
             pid->sensor_fault = 1;
             pid->enabled = 0;
             heater_set(pid_idx, 0);
+            char hl = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
             rt_kprintf("[PID] Handle %c sensor fault! temp=%.1f\n",
-                       'A' + pid_idx, temp);
+                       hl, temp);
         }
         return 0;
     }
@@ -161,8 +162,9 @@ static uint8_t safety_check(uint8_t pid_idx)
     if (temp > TEMP_OVERHEAT_CELSIUS) {
         pid->enabled = 0;
         heater_set(pid_idx, 0);
+        char hl2 = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
         rt_kprintf("[PID] Handle %c overheat! temp=%.1f > %d\n",
-                   'A' + pid_idx, temp, TEMP_OVERHEAT_CELSIUS);
+                   hl2, temp, TEMP_OVERHEAT_CELSIUS);
         return 0;
     }
 
@@ -187,6 +189,16 @@ static void pid_compute(uint8_t pid_idx)
 
     /* Read current temperature from NTC sensor */
     pid->current_temp = ntc_sensor_get_temperature(ntc_ch);
+
+    /* Periodic debug log every ~2s (20 cycles x 100ms) */
+    static uint8_t s_dbg_counter[TEMP_PID_COUNT] = {0};
+    if (++s_dbg_counter[pid_idx] >= 20) {
+        s_dbg_counter[pid_idx] = 0;
+        char hl = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
+        rt_kprintf("[PID] %c: tgt=%.1f cur=%.1f out=%.1f en=%d pre=%d ntc=%d\n",
+                   hl, pid->target_temp, pid->current_temp, pid->output,
+                   pid->enabled, pid->preheat_active, ntc_ch);
+    }
 
     /* Safety check */
     if (!safety_check(pid_idx)) {
@@ -221,8 +233,9 @@ static void pid_compute(uint8_t pid_idx)
             /* Reset integral for clean PID start */
             pid->integral = 0;
             pid->prev_measurement = pid->current_temp;
+            char hl = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
             rt_kprintf("[PID] Handle %c preheat -> PID at %.1f C\n",
-                       'A' + pid_idx, pid->current_temp);
+                       hl, pid->current_temp);
         } else {
             /* Ramp up preheat power gradually (per-handle limit) */
             uint8_t preheat_max = (pid_idx == TEMP_PID_LARGE)
@@ -417,8 +430,10 @@ void temp_pid_set_target(uint8_t pid_idx, float temp_c)
         heater_set(pid_idx, 0);
     }
 
-    rt_kprintf("[PID] Handle %c target: %.1f C, enabled=%d\n",
-               'A' + pid_idx, temp_c, pid->enabled);
+    /* PID[0]=LARGE=Handle B, PID[1]=SMALL=Handle A */
+    char handle_letter = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
+    rt_kprintf("[PID] Handle %c target: %.1f C, enabled=%d, preheat=%d\n",
+               handle_letter, temp_c, pid->enabled, pid->preheat_active);
 }
 
 float temp_pid_get_target(uint8_t pid_idx)
