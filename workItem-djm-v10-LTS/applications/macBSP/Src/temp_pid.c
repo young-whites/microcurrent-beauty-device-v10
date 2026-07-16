@@ -224,11 +224,14 @@ static void pid_compute(uint8_t pid_idx)
             rt_kprintf("[PID] Handle %c preheat -> PID at %.1f C\n",
                        'A' + pid_idx, pid->current_temp);
         } else {
-            /* Ramp up preheat power gradually */
-            if (pid->preheat_power < TEMP_PID_PREHEAT_MAX_POWER) {
+            /* Ramp up preheat power gradually (per-handle limit) */
+            uint8_t preheat_max = (pid_idx == TEMP_PID_LARGE)
+                                  ? TEMP_PID_PREHEAT_MAX_POWER_LARGE
+                                  : TEMP_PID_PREHEAT_MAX_POWER_SMALL;
+            if (pid->preheat_power < preheat_max) {
                 pid->preheat_power += TEMP_PID_PREHEAT_RAMP_STEP;
-                if (pid->preheat_power > TEMP_PID_PREHEAT_MAX_POWER) {
-                    pid->preheat_power = TEMP_PID_PREHEAT_MAX_POWER;
+                if (pid->preheat_power > preheat_max) {
+                    pid->preheat_power = preheat_max;
                 }
             }
             pid->output = (float)pid->preheat_power;
