@@ -44,9 +44,10 @@ static const int8_t s_handle_to_pid[3] = {
 };
 
 /* NTC channel mapping: handle index -> NTC channel (-1 = no sensor) */
+/* NOTE: Physical wiring is swapped - PC0=small handle, PC1=large handle */
 static const int8_t s_handle_to_ntc[3] = {
-    NTC_CH_SMALL,    /* Handle A (0) -> small handle NTC */
-    NTC_CH_LARGE,    /* Handle B (1) -> large handle NTC */
+    NTC_CH_LARGE,    /* Handle A (0) -> NTC_CH_LARGE/PC0 (physical: small handle) */
+    NTC_CH_SMALL,    /* Handle B (1) -> NTC_CH_SMALL/PC1 (physical: large handle) */
     -1               /* Handle C (2) -> no NTC */
 };
 
