@@ -35,8 +35,7 @@
 #include "main.h"       /* For GPIO pin definitions */
 #include <math.h>
 
-/* USART2 handle for VOFA+ debug output */
-extern UART_HandleTypeDef huart2;
+/* Using rt_kprintf for VOFA+ debug output (console on uart2) */
 
 /* VOFA+ FireWater protocol: target,current,output,p,i,d\n */
 /* WARNING: HAL_UART_Transmit is blocking. Set VOFA_ENABLE=0 for production! */
@@ -51,18 +50,12 @@ static void vofa_output(uint8_t pid_idx, float p_term, float i_term, float d_ter
     /* Only output the active (enabled) PID, skip inactive */
     if (!pid->enabled) return;
 
-    char buf[128];
-    int len = snprintf(buf, sizeof(buf),
-                       "%d:%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\r\n",
-                       pid_idx,
-                       pid->target_temp,
-                       pid->current_temp,
-                       pid->output,
-                       p_term, i_term, d_term);
-
-    if (len > 0 && len < (int)sizeof(buf)) {
-        HAL_UART_Transmit(&huart2, (uint8_t *)buf, len, 10);
-    }
+    rt_kprintf("%d:%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\r\n",
+               pid_idx,
+               pid->target_temp,
+               pid->current_temp,
+               pid->output,
+               p_term, i_term, d_term);
 }
 #endif
 #include <rtthread.h>
