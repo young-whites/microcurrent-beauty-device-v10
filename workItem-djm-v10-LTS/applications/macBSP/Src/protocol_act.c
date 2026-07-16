@@ -299,6 +299,9 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
     uint8_t temperature = params[0];
     uint8_t handle_id = params[1];
 
+    rt_kprintf("[PROTO] Temp cmd: temp=%u, handle=0x%02X, current=0x%02X\n",
+               temperature, handle_id, g_dev_state.current_handle);
+
     if (temperature > 41) {
         protocol_send_error(FUNC_TEMP_CTRL, ERR_PARAM);
         return;
