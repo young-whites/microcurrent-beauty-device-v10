@@ -79,6 +79,7 @@ typedef enum {
 #define TEMP_MIN_CELSIUS        0           /* Minimum target temperature */
 #define TEMP_MAX_CELSIUS        41          /* Maximum target temperature (safety) */
 #define TEMP_OVERHEAT_CELSIUS   45          /* Overheat protection threshold */
+#define TEMP_OVERHEAT_RECOVERY_OFFSET 1.0f  /* Recovery when temp drops to target - this value */
 #define TEMP_SENSOR_ERROR_LOW   -30.0f      /* Sensor error: below this = fault */
 #define TEMP_SENSOR_ERROR_HIGH  100.0f      /* Sensor error: above this = fault */
 

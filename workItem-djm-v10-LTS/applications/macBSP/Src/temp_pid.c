@@ -768,7 +768,30 @@ void temp_pid_tick(void)
             continue;
         }
 
-        /* Skip if not enabled */
+        /* Overheat recovery: re-enable PID when temp drops to target - 1 */
+        if (!pid->enabled && pid->target_temp > 0) {
+            float cur = ntc_sensor_get_temperature(s_ntc_channel[i]);
+            if (cur <= pid->target_temp - TEMP_OVERHEAT_RECOVERY_OFFSET && cur > TEMP_SENSOR_ERROR_LOW
+                && cur < TEMP_OVERHEAT_CELSIUS) {
+                pid->enabled = 1;
+                pid->preheat_active = 1;
+                pid->preheat_power = TEMP_PID_PREHEAT_RAMP_STEP;
+                pid->integral = 0;
+                pid->prev_measurement = cur;
+                pid->sensor_fault = 0;
+                pid->fault_count = 0;
+                char hl = (i == TEMP_PID_LARGE) ? 'B' : 'A';
+                rt_kprintf("[PID] Handle %c overheat recovered at %.1f C, "
+                           "target=%.1f C\n", hl, cur, pid->target_temp);
+            }
+            /* Still skip PID computation this cycle, resume next cycle */
+            if (pid->heater_on) {
+                heater_set(i, 0);
+            }
+            continue;
+        }
+
+        /* Skip if not enabled (no target set) */
         if (!pid->enabled) {
             if (pid->heater_on) {
                 heater_set(i, 0);
