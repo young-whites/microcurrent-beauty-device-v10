@@ -415,9 +415,10 @@ void temp_pid_set_target(uint8_t pid_idx, float temp_c)
 
     pid->target_temp = temp_c;
 
-    /* Enable/disable based on target */
+    /* Save target and prepare preheat state, but do NOT enable PID here.
+     * PID will be enabled only when treatment actually starts (handle_start_pause).
+     * Setting temp to 0 performs a full reset. */
     if (temp_c > 0) {
-        pid->enabled = 1;
         pid->preheat_active = 1;
         pid->preheat_power = TEMP_PID_PREHEAT_RAMP_STEP;
         pid->sensor_fault = 0;

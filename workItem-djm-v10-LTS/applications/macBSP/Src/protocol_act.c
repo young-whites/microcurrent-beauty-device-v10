@@ -414,6 +414,12 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
         g_dev_state.is_running = 1;
         handle_apply_output(hi);
 
+        /* Enable PID temperature control if target is set */
+        int8_t pid_idx = s_handle_to_pid[hi];
+        if (pid_idx >= 0 && temp_pid_get_target(pid_idx) > 0) {
+            temp_pid_set_enable(pid_idx, 1);
+        }
+
         /* Start periodic temperature reporting for handles with NTC */
         if (hi <= 1) {
             protocol_temp_report_start(g_dev_state.current_handle);
@@ -424,6 +430,12 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
         /* Pause: stop waveform output, then disable boost */
         handle_stop_output(hi);
         g_dev_state.is_running = 0;
+
+        /* Disable PID heating when paused */
+        int8_t pid_idx = s_handle_to_pid[hi];
+        if (pid_idx >= 0) {
+            temp_pid_set_enable(pid_idx, 0);
+        }
 
         /* Stop periodic temperature reporting */
         protocol_temp_report_stop();
