@@ -35,7 +35,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-  rt_kprintf("\n[MAIN] Firmware version: %s\n", FW_VERSION);
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -84,6 +84,9 @@ int main(void)
   sysTimer_Init();
 
   /* USER CODE BEGIN 2 */
+
+  rt_kprintf("\n\n[MAIN] Firmware version: %s\n", FW_VERSION);
+
 
   /* USER CODE END 2 */
 
