@@ -122,6 +122,7 @@ typedef struct {
     /* Preheat phase state */
     uint8_t preheat_active;     /* 1 = in preheat phase */
     uint8_t preheat_power;      /* Current preheat power limit (0~PREHEAT_MAX_POWER) */
+    uint8_t overheat_shutdown;  /* 1 = disabled by overheat protection (allows auto-recovery) */
 } temp_pid_t;
 
 /* ============================================================================

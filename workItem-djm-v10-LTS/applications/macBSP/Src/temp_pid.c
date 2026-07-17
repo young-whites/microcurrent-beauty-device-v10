@@ -161,6 +161,7 @@ static uint8_t safety_check(uint8_t pid_idx)
     /* Overheat protection */
     if (temp > TEMP_OVERHEAT_CELSIUS) {
         pid->enabled = 0;
+        pid->overheat_shutdown = 1;
         heater_set(pid_idx, 0);
         char hl2 = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
         rt_kprintf("[PID] Handle %c overheat! temp=%.1f > %d\n",
@@ -448,6 +449,9 @@ void temp_pid_set_enable(uint8_t pid_idx, uint8_t enable)
     if (!enable) {
         s_pid[pid_idx].output = 0;
         heater_set(pid_idx, 0);
+    } else {
+        /* Clear overheat flag when user explicitly enables PID */
+        s_pid[pid_idx].overheat_shutdown = 0;
     }
 }
 
@@ -510,6 +514,7 @@ void temp_pid_full_reset(uint8_t pid_idx)
     pid->sensor_fault = 0;
     pid->fault_count = 0;
     pid->preheat_active = 0;
+    pid->overheat_shutdown = 0;
     pid->preheat_power = 0;
 }
 
@@ -769,11 +774,12 @@ void temp_pid_tick(void)
         }
 
         /* Overheat recovery: re-enable PID when temp drops to target - 1 */
-        if (!pid->enabled && pid->target_temp > 0) {
+        if (!pid->enabled && pid->overheat_shutdown && pid->target_temp > 0) {
             float cur = ntc_sensor_get_temperature(s_ntc_channel[i]);
             if (cur <= pid->target_temp - TEMP_OVERHEAT_RECOVERY_OFFSET && cur > TEMP_SENSOR_ERROR_LOW
                 && cur < TEMP_OVERHEAT_CELSIUS) {
                 pid->enabled = 1;
+                pid->overheat_shutdown = 0;
                 pid->preheat_active = 1;
                 pid->preheat_power = TEMP_PID_PREHEAT_RAMP_STEP;
                 pid->integral = 0;
