@@ -23,6 +23,9 @@
 #include "dac7311.h"
 #include "rtt_system_work.h"
 
+/* Firmware version - update with each commit */
+#define FW_VERSION  "56bf8ed"
+
 
 /**
   * @brief  The application entry point.
@@ -32,7 +35,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  rt_kprintf("\n[MAIN] Firmware version: %s\n", FW_VERSION);
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
