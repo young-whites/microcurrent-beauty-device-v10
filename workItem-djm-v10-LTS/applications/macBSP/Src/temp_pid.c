@@ -152,8 +152,8 @@ static uint8_t safety_check(uint8_t pid_idx)
             pid->enabled = 0;
             heater_set(pid_idx, 0);
             char hl = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
-            rt_kprintf("[PID] Handle %c sensor fault! temp=%.1f\n",
-                       hl, temp);
+            rt_kprintf("[PID] Handle %c sensor fault! temp=%d.%d\n",
+                       hl, (int)temp, ((int)(temp*10))%10);
         }
         return 0;
     }
@@ -164,8 +164,8 @@ static uint8_t safety_check(uint8_t pid_idx)
         pid->overheat_shutdown = 1;
         heater_set(pid_idx, 0);
         char hl2 = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
-        rt_kprintf("[PID] Handle %c overheat! temp=%.1f > %d\n",
-                   hl2, temp, TEMP_OVERHEAT_CELSIUS);
+        rt_kprintf("[PID] Handle %c overheat! temp=%d.%d > %d\n",
+                   hl2, (int)temp, ((int)(temp*10))%10, TEMP_OVERHEAT_CELSIUS);
         return 0;
     }
 
@@ -196,9 +196,14 @@ static void pid_compute(uint8_t pid_idx)
     if (++s_dbg_counter[pid_idx] >= 20) {
         s_dbg_counter[pid_idx] = 0;
         char hl = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
-        rt_kprintf("[PID] %c: tgt=%.1f cur=%.1f out=%.1f en=%d pre=%d ntc=%d\n",
-                   hl, pid->target_temp, pid->current_temp, pid->output,
-                   pid->enabled, pid->preheat_active, ntc_ch);
+        /* Use integer math to avoid float printf stack cost in timer context */
+        int tgt_x10 = (int)(pid->target_temp * 10);
+        int cur_x10 = (int)(pid->current_temp * 10);
+        int out_x10 = (int)(pid->output * 10);
+        rt_kprintf("[PID] %c: tgt=%d.%d cur=%d.%d out=%d.%d en=%d pre=%d\n",
+                   hl, tgt_x10/10, tgt_x10%10, cur_x10/10, cur_x10%10,
+                   out_x10/10, out_x10%10,
+                   pid->enabled, pid->preheat_active);
     }
 
     /* Safety check */
@@ -235,8 +240,8 @@ static void pid_compute(uint8_t pid_idx)
             pid->integral = 0;
             pid->prev_measurement = pid->current_temp;
             char hl = (pid_idx == TEMP_PID_LARGE) ? 'B' : 'A';
-            rt_kprintf("[PID] Handle %c preheat -> PID at %.1f C\n",
-                       hl, pid->current_temp);
+            rt_kprintf("[PID] Handle %c preheat -> PID at %d.%d C\n",
+                       hl, (int)pid->current_temp, ((int)(pid->current_temp*10))%10);
         } else {
             /* Ramp up preheat power gradually (per-handle limit) */
             uint8_t preheat_max = (pid_idx == TEMP_PID_LARGE)
@@ -787,8 +792,10 @@ void temp_pid_tick(void)
                 pid->sensor_fault = 0;
                 pid->fault_count = 0;
                 char hl = (i == TEMP_PID_LARGE) ? 'B' : 'A';
-                rt_kprintf("[PID] Handle %c overheat recovered at %.1f C, "
-                           "target=%.1f C\n", hl, cur, pid->target_temp);
+                int rc = (int)(cur * 10);
+                int rt = (int)(pid->target_temp * 10);
+                rt_kprintf("[PID] Handle %c overheat recovered at %d.%d C, "
+                           "target=%d.%d C\n", hl, rc/10, rc%10, rt/10, rt%10);
             }
             /* Still skip PID computation this cycle, resume next cycle */
             if (pid->heater_on) {
