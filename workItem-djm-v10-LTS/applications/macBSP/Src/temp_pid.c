@@ -39,7 +39,7 @@
 
 /* VOFA+ FireWater protocol: target,current,output,p,i,d\n */
 /* WARNING: HAL_UART_Transmit is blocking. Set VOFA_ENABLE=0 for production! */
-#define VOFA_ENABLE  1
+#define VOFA_ENABLE  0
 
 #if VOFA_ENABLE
 static void vofa_output(uint8_t pid_idx, float p_term, float i_term, float d_term)
