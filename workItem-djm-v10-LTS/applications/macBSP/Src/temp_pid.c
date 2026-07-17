@@ -269,7 +269,7 @@ static void pid_compute(uint8_t pid_idx)
 
     /* Dead band: if error is small, don't adjust (avoid chatter) */
     if (fabsf(error) < TEMP_PID_DEADBAND) {
-        /* Maintain current output, don't accumulate */
+        /* Maintain current output, but update state for next cycle */
         pid->prev_error = error;
         pid->prev_measurement = pid->current_temp;
         return;
