@@ -24,7 +24,7 @@
 #include "rtt_system_work.h"
 
 /* Firmware version - update with each commit */
-#define FW_VERSION  "23e3ccc"
+#define FW_VERSION  "21f0ee7"
 
 
 /**
