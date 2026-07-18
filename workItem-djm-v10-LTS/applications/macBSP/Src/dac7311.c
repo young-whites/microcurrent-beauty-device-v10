@@ -160,9 +160,9 @@ void dac7311_set_voltage(float voltage)
     uint16_t value = (uint16_t)((voltage / DAC7311_VREF) * (DAC7311_RESOLUTION - 1) + 0.5f);
     if (value > 16383) value = 16383;
 
-    /* Build 16-bit frame: [MODE(2) DATA(14) RSVD(2)]
-     * D15:D14 = mode, D13:D0 = value<<2, D1:D0 = 0 */
-    uint16_t frame = (DAC7311_PD_NORMAL << 14) | (value << 2);
+    /* Build 16-bit frame: [MODE(2)=00 DATA(14) RSVD(2)=0]
+     * Force mode bits to 00 via mask, data in D13:D2 */
+    uint16_t frame = (value << 2) & 0x3FFC;
 
     /* Write to DAC */
     dac7311_write_frame(frame);
@@ -178,7 +178,7 @@ void dac7311_set_raw(uint16_t value)
 {
     if (value > 16383) value = 16383;
 
-    uint16_t frame = (DAC7311_PD_NORMAL << 14) | (value << 2);
+    uint16_t frame = (value << 2) & 0x3FFC;
     dac7311_write_frame(frame);
 
     s_dac_raw = value;
@@ -340,7 +340,7 @@ static int dactest(int argc, char **argv)
         float v = atof(argv[2]);
         uint16_t value = (uint16_t)((v / DAC7311_VREF) * (DAC7311_RESOLUTION - 1) + 0.5f);
         if (value > 16383) value = 16383;
-        uint16_t frame = (DAC7311_PD_NORMAL << 14) | (value << 2);
+        uint16_t frame = (value << 2) & 0x3FFC;
         rt_kprintf("[DACTEST] V=%.3fV -> raw=%d -> frame=0x%04X\n", v, value, frame);
         rt_kprintf("[DACTEST] Binary: ");
         for (int8_t bit = 15; bit >= 0; bit--) {
