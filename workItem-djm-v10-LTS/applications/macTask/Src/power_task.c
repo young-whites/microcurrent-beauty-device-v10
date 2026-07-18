@@ -104,7 +104,7 @@ static void power_do_shutdown(void)
     bsp_heater_small_set(0);
 
     /* Disable pump */
-    dac7311_set_percent(0);
+    dac7311_set_pump_speed(0);
     /* Reset PID state */
     temp_pid_reset(TEMP_PID_LARGE);
     temp_pid_reset(TEMP_PID_SMALL);

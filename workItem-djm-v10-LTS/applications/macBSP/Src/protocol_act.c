@@ -209,7 +209,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     /* Turn off all heaters via PID reset (mutual exclusion) and pump */
     temp_pid_set_target(TEMP_PID_LARGE, 0);
     temp_pid_set_target(TEMP_PID_SMALL, 0);
-    dac7311_set_percent(0);
+    dac7311_set_pump_speed(0);
 
     /* Clear all handles' parameters */
     for (int i = 0; i < 3; i++) {
@@ -368,8 +368,12 @@ static void handle_pump_ctrl(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.handle[2].pump_speed = speed;
 
-    /* Control pump via DAC7311: 0~100% maps to 0~5V */
-    dac7311_set_percent(speed);
+    /* Control pump via DAC7311 with non-linear voltage mapping:
+     *   0%       -> 0.0V (off)
+     *   1%~90%   -> 0.6V~4.5V (control zone)
+     *   91%~100% -> 4.6V~5.0V (saturation zone)
+     */
+    dac7311_set_pump_speed(speed);
 
     rt_kprintf("[PROTO] Pump speed set: %u%%, DAC output: %.2fV\n",
                speed, dac7311_get_voltage());

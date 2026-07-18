@@ -167,3 +167,48 @@ float dac7311_get_voltage(void)
 {
     return s_dac_voltage;
 }
+
+/* ============================================================================
+ *  Pump Speed Control (non-linear voltage mapping)
+ * ===========================================================================*/
+
+/*
+ * Pump voltage zones:
+ *   0.0V ~ 0.5V  : Dead zone   (pump does not rotate)
+ *   0.6V ~ 4.5V  : Control zone (linear speed regulation)
+ *   4.6V ~ 5.0V  : Saturation   (full load, constant max speed)
+ *
+ * Percentage mapping (upper machine 0~100%):
+ *   0%       -> 0.0V (off)
+ *   1%~90%   -> 0.6V ~ 4.5V  (control zone, linear)
+ *   91%~100% -> 4.6V ~ 5.0V  (saturation zone, linear)
+ */
+void dac7311_set_pump_speed(uint8_t percent)
+{
+    float voltage;
+
+    if (percent == 0) {
+        /* Off: output 0V */
+        voltage = 0.0f;
+    } else if (percent <= PUMP_CTRL_MAX_PCT) {
+        /*
+         * Control zone: 1%~90% -> 0.6V~4.5V
+         * Linear interpolation:
+         *   V = PUMP_CTRL_MIN_V + (pct-1) / (PUMP_CTRL_MAX_PCT-1) * (PUMP_CTRL_MAX_V - PUMP_CTRL_MIN_V)
+         */
+        float ratio = (float)(percent - 1) / (float)(PUMP_CTRL_MAX_PCT - 1);
+        voltage = PUMP_CTRL_MIN_V + ratio * (PUMP_CTRL_MAX_V - PUMP_CTRL_MIN_V);
+    } else {
+        /*
+         * Saturation zone: 91%~100% -> 4.6V~5.0V
+         * Linear interpolation:
+         *   V = PUMP_SAT_MIN_V + (pct-91) / (100-91) * (PUMP_SAT_MAX_V - PUMP_SAT_MIN_V)
+         */
+        float ratio = (float)(percent - PUMP_CTRL_MAX_PCT - 1) / (float)(100 - PUMP_CTRL_MAX_PCT - 1);
+        voltage = PUMP_SAT_MIN_V + ratio * (PUMP_SAT_MAX_V - PUMP_SAT_MIN_V);
+    }
+
+    dac7311_set_voltage(voltage);
+
+    rt_kprintf("[PUMP] speed=%u%% -> voltage=%.2fV\n", percent, voltage);
+}
