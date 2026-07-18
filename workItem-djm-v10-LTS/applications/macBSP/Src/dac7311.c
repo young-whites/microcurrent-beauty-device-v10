@@ -143,6 +143,11 @@ void dac7311_init(void)
     DAC_GPIO_PORT->BRR  = DAC_SCLK_PIN;       /* SCLK = LOW  */
     DAC_GPIO_PORT->BRR  = DAC_DIN_PIN;        /* DIN  = LOW  */
 
+    /* Debug: dump GPIOB CRH register to verify pin config */
+    rt_kprintf("[DAC7311] GPIOB CRL=0x%08X CRH=0x%08X ODR=0x%04X\n",
+               (unsigned)DAC_GPIO_PORT->CRL, (unsigned)DAC_GPIO_PORT->CRH,
+               (unsigned)DAC_GPIO_PORT->ODR);
+
     /* Output 2.75V for testing */
     dac7311_set_voltage(2.75f);
 
