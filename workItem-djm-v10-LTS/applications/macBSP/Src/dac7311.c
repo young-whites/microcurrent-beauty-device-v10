@@ -5,12 +5,12 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2026-07-14     Administrator       DAC7311 driver for pump speed control
+ * 2026-07-14     Administrator       DAC driver for pump speed control
  *
- * DAC7311: 12-bit, single-channel, SPI DAC (Texas Instruments)
+ * DAC: 14-bit, single-channel, SPI DAC
  * - SPI Mode 0 (CPOL=0, CPHA=0), MSB first
- * - 16-bit frame: [X X PD1 PD0 D11 D10 ... D0]
- * - VOUT = VREF * D / 4096 (VREF = VDD = 5V)
+ * - 16-bit frame: [M1 M0 D13 D12 ... D1 D0 R R]
+ * - VOUT = VREF * D / 16384 (VREF = VDD)
  *
  * Hardware:
  *   PB7  -> SYNC (chip select, active low)
@@ -37,15 +37,15 @@
  *  Internal State
  * ===========================================================================*/
 static float s_dac_voltage = 0.0f;  /* Current output voltage */
-static uint16_t s_dac_raw = 0;      /* Current raw 12-bit value */
+static uint16_t s_dac_raw = 0;      /* Current raw 14-bit value */
 
 /* ============================================================================
  *  Internal: GPIO Bit-Bang SPI
  * ===========================================================================*/
 
 /**
- * @brief  Write 16-bit frame to DAC7311 via software SPI.
- *         Frame format: [D15 D14 PD1 PD0 D11 D10 ... D0]
+ * @brief  Write 16-bit frame to DAC via software SPI.
+ *         Frame format: [M1 M0 D13 D12 ... D1 D0 R R]
  *         SPI Mode 0: CPOL=0, CPHA=0, MSB first.
  *
  * @param  data  16-bit frame data.
@@ -116,12 +116,13 @@ void dac7311_set_voltage(float voltage)
     if (voltage < 0.0f) voltage = 0.0f;
     if (voltage > DAC7311_VOUT_MAX) voltage = DAC7311_VOUT_MAX;
 
-    /* Convert voltage to 12-bit value: D = V * 4096 / VREF */
+    /* Convert voltage to 14-bit value: D = V * 16384 / VREF */
     uint16_t value = (uint16_t)((voltage / DAC7311_VREF) * (DAC7311_RESOLUTION - 1) + 0.5f);
-    if (value > 4095) value = 4095;
+    if (value > 16383) value = 16383;
 
-    /* Build 16-bit frame: [XX PD1=0 PD0=0 D11..D0] */
-    uint16_t frame = (DAC7311_PD_NORMAL << 12) | value;
+    /* Build 16-bit frame: [MODE(2) DATA(14) RSVD(2)]
+     * D15:D14 = mode, D13:D0 = value<<2, D1:D0 = 0 */
+    uint16_t frame = (DAC7311_PD_NORMAL << 14) | (value << 2);
 
     /* Write to DAC */
     dac7311_write_frame(frame);
@@ -133,9 +134,9 @@ void dac7311_set_voltage(float voltage)
 
 void dac7311_set_raw(uint16_t value)
 {
-    if (value > 4095) value = 4095;
+    if (value > 16383) value = 16383;
 
-    uint16_t frame = (DAC7311_PD_NORMAL << 12) | value;
+    uint16_t frame = (DAC7311_PD_NORMAL << 14) | (value << 2);
     dac7311_write_frame(frame);
 
     s_dac_raw = value;
@@ -152,8 +153,8 @@ void dac7311_set_percent(uint8_t percent)
 
 void dac7311_power_down(uint8_t mode)
 {
-    /* Power-down frame: [XX PD1 PD0 0...0] */
-    uint16_t frame = ((uint16_t)(mode & 0x03) << 12);
+    /* Power-down frame: [MODE(2) 0...0 RSVD(2)] */
+    uint16_t frame = ((uint16_t)(mode & 0x03) << 14);
     dac7311_write_frame(frame);
 
     s_dac_raw = 0;
