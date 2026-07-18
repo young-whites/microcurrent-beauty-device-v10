@@ -239,117 +239,165 @@ void dac7311_set_pump_speed(uint8_t percent)
     rt_kprintf("[PUMP] speed=%u%% -> voltage=%.2fV\n", percent, voltage);
 }
 
-/* ============================================================================
- *  DAC Test Function (RT-Thread Shell)
- * ===========================================================================*/
-
-/**
- * @brief  DAC comprehensive test.
+/* ============================================================================ *  RT-Thread Shell Command: dac
  *  Usage:
- *    dactest gpio      - Toggle PB8/PB9 for hardware verification
- *    dactest volt <v>  - Set specific voltage (0.0 ~ 5.0)
- *    dactest sweep     - Sweep 0V -> 1V -> 2V -> 3V -> 4V -> 5V (2s each)
- *    dactest pump <p>  - Test pump speed mapping (0~100)
- *    dactest dump      - Dump GPIO registers
- *    dactest frame <v> - Show frame value for a voltage
- */
-static int dactest(int argc, char **argv)
+ *    dac volt <value>     - Set output voltage (0.0 ~ 5.0V)
+ *    dac raw <value>      - Set raw 14-bit value (0 ~ 16383)
+ *    dac pct <value>      - Set percentage (0 ~ 100%)
+ *    dac pd <mode>        - Power-down (0=normal, 1=1k, 2=100k, 3=HiZ)
+ *    dac info             - Show current status
+ * ===========================================================================*/
+static int dac(int argc, char **argv)
 {
     if (argc < 2) {
         rt_kprintf("Usage:\n");
-        rt_kprintf("  dactest gpio       Toggle PB8/PB9 (3s each state)\n");
-        rt_kprintf("  dactest volt <v>   Set voltage (0.0~5.0V)\n");
-        rt_kprintf("  dactest sweep      Sweep 0V->5V in 1V steps\n");
-        rt_kprintf("  dactest pump <p>   Test pump speed (0~100%%)\n");
-        rt_kprintf("  dactest dump       Dump GPIO registers\n");
-        rt_kprintf("  dactest frame <v>  Show frame for voltage\n");
+        rt_kprintf("  dac volt <0.0~5.0>    Set voltage\n");
+        rt_kprintf("  dac raw  <0~16383>     Set raw value\n");
+        rt_kprintf("  dac pct  <0~100>      Set percentage\n");
+        rt_kprintf("  dac pd   <0~3>        Power-down mode\n");
+        rt_kprintf("  dac info              Show status\n");
+        rt_kprintf("  dac wave <type> [freq] [amp] [offset]  Waveform output\n");
+        rt_kprintf("  dac test [interval_ms] [hex_frame]  SPI protocol test\n");
         return -RT_ERROR;
     }
 
-    GPIO_TypeDef *port = DAC_GPIO_PORT;
-
-    if (rt_strcmp(argv[1], "gpio") == 0) {
-        /* GPIO toggle test */
-        rt_kprintf("[DACTEST] PB8=HIGH PB9=LOW - measure now (3s)\n");
-        port->BSRR = DAC_SCLK_PIN;
-        port->BRR  = DAC_DIN_PIN;
-        rt_thread_mdelay(3000);
-
-        rt_kprintf("[DACTEST] PB8=LOW PB9=HIGH - measure now (3s)\n");
-        port->BRR  = DAC_SCLK_PIN;
-        port->BSRR = DAC_DIN_PIN;
-        rt_thread_mdelay(3000);
-
-        rt_kprintf("[DACTEST] PB8=LOW PB9=LOW\n");
-        port->BRR = DAC_SCLK_PIN;
-        port->BRR = DAC_DIN_PIN;
-
-    } else if (rt_strcmp(argv[1], "volt") == 0) {
-        if (argc < 3) { rt_kprintf("Usage: dactest volt <0.0~5.0>\n"); return -RT_ERROR; }
+    if (rt_strcmp(argv[1], "volt") == 0) {
+        if (argc < 3) { rt_kprintf("Usage: dac volt <voltage>\n"); return -RT_ERROR; }
         float v = atof(argv[2]);
         dac7311_set_voltage(v);
-        rt_kprintf("[DACTEST] Output %.3fV, measure VOUT now\n", v);
-
-    } else if (rt_strcmp(argv[1], "sweep") == 0) {
-        float voltages[] = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
-        for (int i = 0; i < 6; i++) {
-            dac7311_set_voltage(voltages[i]);
-            rt_kprintf("[DACTEST] %.1fV - measure now (2s)\n", voltages[i]);
-            rt_thread_mdelay(2000);
-        }
-        dac7311_set_voltage(0.0f);
-        rt_kprintf("[DACTEST] Sweep done, output 0V\n");
-
-    } else if (rt_strcmp(argv[1], "pump") == 0) {
-        if (argc < 3) { rt_kprintf("Usage: dactest pump <0~100>\n"); return -RT_ERROR; }
+        rt_kprintf("[DAC] Voltage set to %.3fV (raw=%d)\n", dac7311_get_voltage(), (int)(v / DAC7311_VREF * 16383));
+    } else if (rt_strcmp(argv[1], "raw") == 0) {
+        if (argc < 3) { rt_kprintf("Usage: dac raw <0~16383>\n"); return -RT_ERROR; }
+        uint16_t val = atoi(argv[2]);
+        dac7311_set_raw(val);
+        rt_kprintf("[DAC] Raw set to %d (%.3fV)\n", val, dac7311_get_voltage());
+    } else if (rt_strcmp(argv[1], "pct") == 0) {
+        if (argc < 3) { rt_kprintf("Usage: dac pct <0~100>\n"); return -RT_ERROR; }
         uint8_t pct = atoi(argv[2]);
-        dac7311_set_pump_speed(pct);
-        rt_kprintf("[DACTEST] Pump %u%% -> %.3fV, measure VOUT now\n", pct, dac7311_get_voltage());
-
-    } else if (rt_strcmp(argv[1], "dump") == 0) {
-        uint32_t apb2enr = RCC->APB2ENR;
-        rt_kprintf("=== DAC GPIO Diagnostic ===\n");
-        rt_kprintf("[RCC] APB2ENR    = 0x%08X\n", (unsigned)apb2enr);
-        rt_kprintf("[RCC] GPIOB EN   = %s\n", (apb2enr & RCC_APB2ENR_IOPBEN) ? "YES" : "NO");
-        rt_kprintf("[GPIOB] CRL      = 0x%08X  (pins 0-7)\n", (unsigned)port->CRL);
-        rt_kprintf("[GPIOB] CRH      = 0x%08X  (pins 8-15)\n", (unsigned)port->CRH);
-        rt_kprintf("[GPIOB] IDR      = 0x%04X  (input state)\n", (unsigned)port->IDR);
-        rt_kprintf("[GPIOB] ODR      = 0x%04X  (output state)\n", (unsigned)port->ODR);
-
-        /* Decode PB7/PB8/PB9 modes */
-        uint32_t crl = port->CRL;
-        uint32_t crh = port->CRH;
-        uint32_t mode7 = (crl >> 28) & 0xF;
-        uint32_t mode8 = crh & 0xF;
-        uint32_t mode9 = (crh >> 4) & 0xF;
-
-        const char *mode_str(uint32_t m) {
-            if ((m & 0x3) == 0) return "Input";
-            if ((m & 0x3) == 1) return (m & 0x4) ? "Out10MHz Open-Drain" : "Out10MHz Push-Pull";
-            if ((m & 0x3) == 2) return (m & 0x4) ? "Out2MHz Open-Drain" : "Out2MHz Push-Pull";
-            return (m & 0x4) ? "Out50MHz Open-Drain" : "Out50MHz Push-Pull";
-        };
-        rt_kprintf("[PB7/SYNC] CRH bits=0x%X -> %s\n", (unsigned)mode7, mode_str(mode7));
-        rt_kprintf("[PB8/SCLK] CRH bits=0x%X -> %s\n", (unsigned)mode8, mode_str(mode8));
-        rt_kprintf("[PB9/DIN]  CRH bits=0x%X -> %s\n", (unsigned)mode9, mode_str(mode9));
-
-        rt_kprintf("[DAC] voltage=%.3fV raw=%d\n", dac7311_get_voltage(), s_dac_raw);
-
-    } else if (rt_strcmp(argv[1], "frame") == 0) {
-        if (argc < 3) { rt_kprintf("Usage: dactest frame <0.0~5.0>\n"); return -RT_ERROR; }
-        float v = atof(argv[2]);
-        uint16_t value = (uint16_t)((v / DAC7311_VREF) * (DAC7311_RESOLUTION - 1) + 0.5f);
-        if (value > 16383) value = 16383;
-        uint16_t frame = (value << 2) & 0x3FFC;
-        rt_kprintf("[DACTEST] V=%.3fV -> raw=%d -> frame=0x%04X\n", v, value, frame);
-        rt_kprintf("[DACTEST] Binary: ");
-        for (int8_t bit = 15; bit >= 0; bit--) {
-            rt_kprintf("%d", (frame >> bit) & 1);
-            if (bit == 14 || bit == 12 || bit == 2) rt_kprintf(" ");
+        dac7311_set_percent(pct);
+        rt_kprintf("[DAC] Percent set to %d%% (%.3fV)\n", pct, dac7311_get_voltage());
+    } else if (rt_strcmp(argv[1], "pd") == 0) {
+        if (argc < 3) { rt_kprintf("Usage: dac pd <0~3>\n"); return -RT_ERROR; }
+        uint8_t mode = atoi(argv[2]);
+        dac7311_power_down(mode);
+        rt_kprintf("[DAC] Power-down mode=%d\n", mode);
+    } else if (rt_strcmp(argv[1], "info") == 0) {
+        rt_kprintf("[DAC7311 Status]\n");
+        rt_kprintf("  Voltage: %.3fV\n", dac7311_get_voltage());
+        rt_kprintf("  Pinout:  PB7=SYNC, PB8=SCLK, PB9=DIN\n");
+        rt_kprintf("  VREF:    %.1fV (VDD)\n", DAC7311_VREF);
+        rt_kprintf("  Mode:    SPI SW Bit-Bang, Mode 0, MSB first\n");
+    } else if (rt_strcmp(argv[1], "wave") == 0) {
+        if (argc < 3) {
+            rt_kprintf("Usage:\n");
+            rt_kprintf("  dac wave sin    [freq] [amp] [offset]  Sine wave\n");
+            rt_kprintf("  dac wave square [freq] [amp] [offset]  Square wave\n");
+            rt_kprintf("  dac wave tri    [freq] [amp] [offset]  Triangle wave\n");
+            rt_kprintf("  dac wave saw    [freq] [amp] [offset]  Sawtooth wave\n");
+            rt_kprintf("  dac wave stop                           Stop waveform\n");
+            rt_kprintf("  dac wave info                           Show status\n");
+            rt_kprintf("  Defaults: freq=1Hz, amp=2.5V, offset=2.5V\n");
+            return -RT_ERROR;
         }
-        rt_kprintf("\n");
-        rt_kprintf("[DACTEST]   M1M0  D13-D2    R R\n");
 
+        if (rt_strcmp(argv[2], "stop") == 0) {
+            wave_stop();
+            rt_kprintf("[WAVE] Stopped\n");
+        } else if (rt_strcmp(argv[2], "info") == 0) {
+            if (s_wave_type == WAVE_NONE) {
+                rt_kprintf("[WAVE] Idle (no waveform active)\n");
+            } else {
+                rt_tick_t period_ms = (rt_tick_t)(1000.0f / ((float)WAVE_LUT_SIZE * s_wave_freq));
+                rt_kprintf("[WAVE] Active: %s\n", wave_type_name(s_wave_type));
+                rt_kprintf("  Freq:   %.2f Hz\n", s_wave_freq);
+                rt_kprintf("  Amp:    %.3f V\n", s_wave_amp);
+                rt_kprintf("  Offset: %.3f V\n", s_wave_offset);
+                rt_kprintf("  LUT:    %d points, %d ms/sample\n", WAVE_LUT_SIZE, (int)period_ms);
+                rt_kprintf("  Range:  %.3f ~ %.3f V\n",
+                           s_wave_offset - s_wave_amp,
+                           s_wave_offset + s_wave_amp);
+            }
+        } else {
+            wave_type_t type = WAVE_NONE;
+            if (rt_strcmp(argv[2], "sin") == 0)          type = WAVE_SIN;
+            else if (rt_strcmp(argv[2], "square") == 0)  type = WAVE_SQUARE;
+            else if (rt_strcmp(argv[2], "tri") == 0)     type = WAVE_TRI;
+            else if (rt_strcmp(argv[2], "saw") == 0)     type = WAVE_SAW;
+            else {
+                rt_kprintf("[WAVE] Unknown type: %s\n", argv[2]);
+                return -RT_ERROR;
+            }
+
+            float freq   = (argc > 3) ? atof(argv[3]) : 1.0f;
+            float amp    = (argc > 4) ? atof(argv[4]) : 2.5f;
+            float offset = (argc > 5) ? atof(argv[5]) : 2.5f;
+
+            wave_start(type, freq, amp, offset);
+            rt_kprintf("[WAVE] Started: %s, %.2fHz, amp=%.3fV, offset=%.3fV\n",
+                       wave_type_name(type), freq, amp, offset);
+            rt_kprintf("[WAVE] Range: %.3f ~ %.3f V\n",
+                       offset - amp < 0.0f ? 0.0f : offset - amp,
+                       offset + amp > DAC7311_VREF ? DAC7311_VREF : offset + amp);
+        }
+    } else if (rt_strcmp(argv[1], "test") == 0) {
+        if (argc < 3) {
+            rt_kprintf("Usage:\n");
+            rt_kprintf("  dac test [interval_ms] [hex_frame] [clk_us]  Repeat SPI frame\n");
+            rt_kprintf("  dac test stop                                Stop test mode\n");
+            rt_kprintf("  dac test info                                Show status\n");
+            rt_kprintf("  Defaults: interval=10ms, frame=0x2000 (2.5V), clk=0 (fast)\n");
+            rt_kprintf("  clk_us: SCLK high/low time in us (0=fast, 1000=1ms per half-clock)\n");
+            rt_kprintf("\n  Probe: PB7=SYNC, PB8=SCLK, PB9=DIN\n");
+            return -RT_ERROR;
+        }
+
+        if (rt_strcmp(argv[2], "stop") == 0) {
+            test_stop();
+            dac7311_set_delay(0);  /* restore fast mode */
+            rt_kprintf("[TEST] Stopped (sent %d frames)\n", (int)s_test_count);
+        } else if (rt_strcmp(argv[2], "info") == 0) {
+            if (s_test_timer == RT_NULL) {
+                rt_kprintf("[TEST] Idle\n");
+            } else {
+                rt_kprintf("[TEST] Active\n");
+                rt_kprintf("  Frame:    0x%04X\n", s_test_frame);
+                rt_kprintf("  Sent:     %d frames\n", (int)s_test_count);
+                if (dac7311_get_delay() == 0)
+                    rt_kprintf("  SCLK:     fast (~140ns)\n");
+                else
+                    rt_kprintf("  SCLK:     %d us per half-clock\n", (int)dac7311_get_delay());
+                rt_kprintf("  Probe:    PB7=SYNC, PB8=SCLK, PB9=DIN\n");
+                rt_kprintf("  Trigger:  Set scope to trigger on SYNC falling edge\n");
+            }
+        } else {
+            uint32_t interval = (argc > 2) ? atoi(argv[2]) : 10;
+            uint16_t frame    = (argc > 3) ? (uint16_t)strtol(argv[3], RT_NULL, 16) : 0x2000;
+            uint32_t clk_us   = (argc > 4) ? atoi(argv[4]) : 0;
+            if (interval < 1) interval = 1;
+            if (interval > 10000) interval = 10000;
+
+            dac7311_set_delay(clk_us);
+            test_start(frame, interval);
+
+            /* Calculate actual frame duration: 16 bits * 3 delays/bit */
+            uint32_t frame_us = clk_us > 0 ? (16 * 3 * clk_us) : (16 * 3 * 140 / 1000);
+            rt_kprintf("[TEST] Started: frame=0x%04X, interval=%dms\n", frame, (int)interval);
+            if (clk_us == 0)
+                rt_kprintf("[TEST] SCLK delay: fast (~140ns)\n");
+            else {
+                rt_kprintf("[TEST] SCLK delay: %d us per half-clock\n", (int)clk_us);
+                rt_kprintf("[TEST] Frame time: ~%d us (16 bits x 3 steps)\n", (int)(16 * 3 * clk_us));
+            }
+            rt_kprintf("[TEST] Probe: PB7=SYNC, PB8=SCLK, PB9=DIN\n");
+            rt_kprintf("[TEST] Scope trigger: SYNC falling edge\n");
+            rt_kprintf("[TEST] Frame bits: ");
+            for (int b = 15; b >= 0; b--) {
+                rt_kprintf("%d", (frame >> b) & 1);
+                if (b == 14 || b == 2) rt_kprintf(" ");
+            }
+            rt_kprintf("\n");
+            rt_kprintf("[TEST]          [M1 M0][D11 D10 .. D1 D0][R R]\n");
+        }
     } else {
         rt_kprintf("Unknown command: %s\n", argv[1]);
         return -RT_ERROR;
@@ -357,4 +405,4 @@ static int dactest(int argc, char **argv)
 
     return RT_EOK;
 }
-MSH_CMD_EXPORT(dactest, DAC test: dactest gpio/volt/sweep/pump/dump/frame);
+MSH_CMD_EXPORT(dac, DAC7311 control: dac volt/raw/pct/pd/info <value>);
