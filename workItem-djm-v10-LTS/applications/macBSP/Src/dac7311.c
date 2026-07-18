@@ -21,6 +21,7 @@
 #include "dac7311.h"
 #include "main.h"
 #include <stdlib.h>
+#include <math.h>
 
 /* ============================================================================
  *  GPIO Pin Definitions (direct register access)
@@ -237,6 +238,178 @@ void dac7311_set_pump_speed(uint8_t percent)
     dac7311_set_voltage(voltage);
 
     rt_kprintf("[PUMP] speed=%u%% -> voltage=%.2fV\n", percent, voltage);
+}
+
+/* ============================================================================
+ *  Waveform Generator (for oscilloscope verification)
+ * ===========================================================================*/
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#define WAVE_LUT_SIZE       256
+
+typedef enum {
+    WAVE_NONE = 0,
+    WAVE_SIN,
+    WAVE_SQUARE,
+    WAVE_TRI,
+    WAVE_SAW
+} wave_type_t;
+
+static uint16_t    s_wave_lut[WAVE_LUT_SIZE];
+static uint32_t    s_wave_idx    = 0;
+static wave_type_t s_wave_type   = WAVE_NONE;
+static float       s_wave_freq   = 1.0f;
+static float       s_wave_amp    = 2.5f;
+static float       s_wave_offset = 2.5f;
+static rt_timer_t  s_wave_timer  = RT_NULL;
+
+static void wave_build_lut(wave_type_t type, float amp, float offset)
+{
+    for (int i = 0; i < WAVE_LUT_SIZE; i++) {
+        float t = (float)i / (float)WAVE_LUT_SIZE;
+        float v;
+
+        switch (type) {
+        case WAVE_SIN:
+            v = offset + amp * sinf(2.0f * (float)M_PI * t);
+            break;
+        case WAVE_SQUARE:
+            v = (t < 0.5f) ? (offset + amp) : (offset - amp);
+            break;
+        case WAVE_TRI:
+            v = (t < 0.5f)
+                ? (offset - amp + 4.0f * amp * t)
+                : (offset + 3.0f * amp - 4.0f * amp * t);
+            break;
+        case WAVE_SAW:
+            v = offset - amp + 2.0f * amp * t;
+            break;
+        default:
+            v = offset;
+            break;
+        }
+
+        if (v < 0.0f) v = 0.0f;
+        if (v > DAC7311_VREF) v = DAC7311_VREF;
+
+        s_wave_lut[i] = (uint16_t)((v / DAC7311_VREF) * 16383.0f + 0.5f);
+    }
+}
+
+static void wave_timer_cb(void *parameter)
+{
+    (void)parameter;
+    dac7311_set_raw(s_wave_lut[s_wave_idx]);
+    s_wave_idx++;
+    if (s_wave_idx >= WAVE_LUT_SIZE) {
+        s_wave_idx = 0;
+    }
+}
+
+static void wave_start(wave_type_t type, float freq, float amp, float offset)
+{
+    if (freq < 0.1f)    freq = 0.1f;
+    if (freq > 1000.0f) freq = 1000.0f;
+    if (amp < 0.0f)     amp = 0.0f;
+    if (amp > DAC7311_VREF) amp = DAC7311_VREF;
+    if (offset < 0.0f)  offset = 0.0f;
+    if (offset > DAC7311_VREF) offset = DAC7311_VREF;
+    if (offset + amp > DAC7311_VREF) amp = DAC7311_VREF - offset;
+    if (offset - amp < 0.0f) amp = offset;
+
+    if (s_wave_timer != RT_NULL) {
+        rt_timer_stop(s_wave_timer);
+        rt_timer_delete(s_wave_timer);
+        s_wave_timer = RT_NULL;
+    }
+
+    s_wave_type   = type;
+    s_wave_freq   = freq;
+    s_wave_amp    = amp;
+    s_wave_offset = offset;
+    s_wave_idx    = 0;
+    wave_build_lut(type, amp, offset);
+
+    rt_tick_t period_ms = (rt_tick_t)(1000.0f / ((float)WAVE_LUT_SIZE * freq));
+    if (period_ms < 1) period_ms = 1;
+
+    s_wave_timer = rt_timer_create("wave", wave_timer_cb,
+                                    RT_NULL, period_ms,
+                                    RT_TIMER_FLAG_PERIODIC | RT_TIMER_FLAG_SOFT_TIMER);
+    if (s_wave_timer != RT_NULL) {
+        rt_timer_start(s_wave_timer);
+    } else {
+        rt_kprintf("[WAVE] ERROR: Failed to create timer!\n");
+    }
+}
+
+static void wave_stop(void)
+{
+    if (s_wave_timer != RT_NULL) {
+        rt_timer_stop(s_wave_timer);
+        rt_timer_delete(s_wave_timer);
+        s_wave_timer = RT_NULL;
+    }
+    s_wave_type = WAVE_NONE;
+    s_wave_idx  = 0;
+}
+
+static const char* wave_type_name(wave_type_t t)
+{
+    switch (t) {
+    case WAVE_SIN:    return "sin";
+    case WAVE_SQUARE: return "square";
+    case WAVE_TRI:    return "tri";
+    case WAVE_SAW:    return "saw";
+    default:          return "none";
+    }
+}
+
+/* ============================================================================
+ *  SPI Protocol Test Mode (repeat fixed frame for oscilloscope capture)
+ * ===========================================================================*/
+static rt_timer_t  s_test_timer  = RT_NULL;
+static uint16_t    s_test_frame  = 0x2000;
+static uint32_t    s_test_count  = 0;
+
+static void test_timer_cb(void *parameter)
+{
+    (void)parameter;
+    dac7311_write_raw_frame(s_test_frame);
+    s_test_count++;
+}
+
+static void test_start(uint16_t frame, uint32_t interval_ms)
+{
+    if (s_test_timer != RT_NULL) {
+        rt_timer_stop(s_test_timer);
+        rt_timer_delete(s_test_timer);
+        s_test_timer = RT_NULL;
+    }
+
+    s_test_frame = frame;
+    s_test_count = 0;
+
+    s_test_timer = rt_timer_create("spitest", test_timer_cb,
+                                    RT_NULL, interval_ms,
+                                    RT_TIMER_FLAG_PERIODIC | RT_TIMER_FLAG_SOFT_TIMER);
+    if (s_test_timer != RT_NULL) {
+        rt_timer_start(s_test_timer);
+    } else {
+        rt_kprintf("[TEST] ERROR: Failed to create timer!\n");
+    }
+}
+
+static void test_stop(void)
+{
+    if (s_test_timer != RT_NULL) {
+        rt_timer_stop(s_test_timer);
+        rt_timer_delete(s_test_timer);
+        s_test_timer = RT_NULL;
+    }
+    s_test_count = 0;
 }
 
 /* ============================================================================ *  RT-Thread Shell Command: dac
