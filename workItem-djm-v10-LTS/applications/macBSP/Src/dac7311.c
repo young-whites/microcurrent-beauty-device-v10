@@ -221,23 +221,10 @@ void dac7311_write_raw_frame(uint16_t frame)
 
 void dac7311_set_pump_speed(uint8_t percent)
 {
-    float voltage;
+    /* Simple linear mapping: 0% -> 0V, 100% -> 5V */
+    dac7311_set_percent(percent);
 
-    if (percent == 0) {
-        voltage = 0.0f;
-    } else if (percent <= PUMP_CTRL_MAX_PCT) {
-        /* Control zone: 1%~90% -> 0.6V~4.5V */
-        float ratio = (float)(percent - 1) / (float)(PUMP_CTRL_MAX_PCT - 1);
-        voltage = PUMP_CTRL_MIN_V + ratio * (PUMP_CTRL_MAX_V - PUMP_CTRL_MIN_V);
-    } else {
-        /* Saturation zone: 91%~100% -> 4.6V~5.0V */
-        float ratio = (float)(percent - PUMP_CTRL_MAX_PCT - 1) / (float)(100 - PUMP_CTRL_MAX_PCT - 1);
-        voltage = PUMP_SAT_MIN_V + ratio * (PUMP_SAT_MAX_V - PUMP_SAT_MIN_V);
-    }
-
-    dac7311_set_voltage(voltage);
-
-    rt_kprintf("[PUMP] speed=%u%% -> voltage=%.2fV\n", percent, voltage);
+    rt_kprintf("[PUMP] speed=%u%% -> voltage=%.2fV\n", percent, dac7311_get_voltage());
 }
 
 /* ============================================================================
