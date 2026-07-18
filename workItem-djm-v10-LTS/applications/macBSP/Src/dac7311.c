@@ -34,7 +34,7 @@
  * ===========================================================================*/
 static float s_dac_voltage = 0.0f;
 static uint16_t s_dac_raw = 0;
-static uint32_t s_dac_delay_us = 0;  /* 0 = fast mode (NOP), >0 = delay per step in us */
+static uint32_t s_dac_delay_us = 5;  /* default 5us per phase for stable DAC latch */
 
 /* ============================================================================
  *  Configurable Delay
