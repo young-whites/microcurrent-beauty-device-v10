@@ -210,6 +210,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     temp_pid_set_target(TEMP_PID_LARGE, 0);
     temp_pid_set_target(TEMP_PID_SMALL, 0);
     dac7311_set_pump_speed(0);
+    bsp_pump_set(0);
 
     /* Clear all handles' parameters */
     for (int i = 0; i < 3; i++) {
@@ -367,6 +368,9 @@ static void handle_pump_ctrl(const uint8_t *params, uint8_t param_len)
     }
 
     g_dev_state.handle[2].pump_speed = speed;
+
+    /* Enable/disable pump power (PB10) */
+    bsp_pump_set(speed > 0 ? 1 : 0);
 
     /* Control pump via DAC7311 with non-linear voltage mapping:
      *   0%       -> 0.0V (off)
