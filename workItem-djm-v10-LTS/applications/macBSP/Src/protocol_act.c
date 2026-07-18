@@ -369,14 +369,7 @@ static void handle_pump_ctrl(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.handle[2].pump_speed = speed;
 
-    /* Enable/disable pump power (PB10) */
-    bsp_pump_set(speed > 0 ? 1 : 0);
-
-    /* Control pump via DAC7311 with non-linear voltage mapping:
-     *   0%       -> 0.0V (off)
-     *   1%~90%   -> 0.6V~4.5V (control zone)
-     *   91%~100% -> 4.6V~5.0V (saturation zone)
-     */
+    /* Only set DAC voltage here. Pump enable (PB10) is controlled by start/pause */
     dac7311_set_pump_speed(speed);
 
     rt_kprintf("[PROTO] Pump speed set: %u%%, DAC output: %.2fV\n",
@@ -422,6 +415,12 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
         g_dev_state.is_running = 1;
         handle_apply_output(hi);
 
+        /* Enable pump (PB10) for handle C */
+        if (hi == 2) {
+            bsp_pump_set(1);
+            rt_kprintf("[PROTO] Pump enabled (handle C)\n");
+        }
+
         /* Enable PID temperature control if target is set */
         int8_t pid_idx = s_handle_to_pid[hi];
         if (pid_idx >= 0 && temp_pid_get_target(pid_idx) > 0) {
@@ -438,6 +437,14 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
         /* Pause: stop waveform output, then disable boost */
         handle_stop_output(hi);
         g_dev_state.is_running = 0;
+
+        /* Disable pump (PB10) for handle C */
+        if (hi == 2) {
+            bsp_pump_set(0);
+            dac7311_set_pump_speed(0);
+            g_dev_state.handle[2].pump_speed = 0;
+            rt_kprintf("[PROTO] Pump disabled (handle C)\n");
+        }
 
         /* Disable PID heating when paused */
         int8_t pid_idx = s_handle_to_pid[hi];
