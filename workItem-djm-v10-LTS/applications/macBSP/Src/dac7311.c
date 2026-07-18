@@ -143,10 +143,10 @@ void dac7311_init(void)
     DAC_GPIO_PORT->BRR  = DAC_SCLK_PIN;       /* SCLK = LOW  */
     DAC_GPIO_PORT->BRR  = DAC_DIN_PIN;        /* DIN  = LOW  */
 
-    /* Output 0V */
-    dac7311_set_voltage(0.0f);
+    /* Output 2.75V for testing */
+    dac7311_set_voltage(2.75f);
 
-    rt_kprintf("[DAC7311] Initialized, output=0.00V\n");
+    rt_kprintf("[DAC7311] Initialized, output=2.750V\n");
 }
 
 void dac7311_set_voltage(float voltage)
