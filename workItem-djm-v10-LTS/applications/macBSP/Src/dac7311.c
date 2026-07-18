@@ -22,15 +22,11 @@
 #include "main.h"
 
 /* ============================================================================
- *  GPIO Pin Definitions
+ *  GPIO Pin Definitions (direct BSRR/BRR register access for speed)
  * ===========================================================================*/
-#define DAC_SYNC_PORT       GPIOB
+#define DAC_GPIO_PORT       GPIOB
 #define DAC_SYNC_PIN        GPIO_PIN_7
-
-#define DAC_SCLK_PORT       GPIOB
 #define DAC_SCLK_PIN        GPIO_PIN_8
-
-#define DAC_DIN_PORT        GPIOB
 #define DAC_DIN_PIN         GPIO_PIN_9
 
 /* ============================================================================
@@ -47,38 +43,41 @@ static uint16_t s_dac_raw = 0;      /* Current raw 14-bit value */
  * @brief  Write 16-bit frame to DAC via software SPI.
  *         Frame format: [M1 M0 D13 D12 ... D1 D0 R R]
  *         SPI Mode 0: CPOL=0, CPHA=0, MSB first.
+ *         Data latched on SCLK rising edge by DAC.
  *
  * @param  data  16-bit frame data.
  */
 static void dac7311_write_frame(uint16_t data)
 {
+    GPIO_TypeDef *port = DAC_GPIO_PORT;
+
     /* Pull SYNC low to start transaction */
-    HAL_GPIO_WritePin(DAC_SYNC_PORT, DAC_SYNC_PIN, GPIO_PIN_RESET);
+    port->BRR = DAC_SYNC_PIN;
+    rt_hw_us_delay(1);  /* SYNC setup time */
 
     /* Clock out 16 bits, MSB first */
     for (int8_t bit = 15; bit >= 0; bit--) {
-        /* Set DIN before rising edge */
+        /* Set DIN before SCLK rising edge */
         if (data & (1 << bit)) {
-            HAL_GPIO_WritePin(DAC_DIN_PORT, DAC_DIN_PIN, GPIO_PIN_SET);
+            port->BSRR = DAC_DIN_PIN;    /* DIN = HIGH */
         } else {
-            HAL_GPIO_WritePin(DAC_DIN_PORT, DAC_DIN_PIN, GPIO_PIN_RESET);
+            port->BRR  = DAC_DIN_PIN;    /* DIN = LOW  */
         }
 
-        __NOP(); __NOP();  /* Data setup time */
+        rt_hw_us_delay(1);  /* Data setup time (~1us) */
 
-        /* SCLK rising edge */
-        HAL_GPIO_WritePin(DAC_SCLK_PORT, DAC_SCLK_PIN, GPIO_PIN_SET);
-
-        __NOP(); __NOP();  /* Clock high time */
+        /* SCLK rising edge (DAC latches data here) */
+        port->BSRR = DAC_SCLK_PIN;
+        rt_hw_us_delay(1);  /* Clock high time (~1us) */
 
         /* SCLK falling edge */
-        HAL_GPIO_WritePin(DAC_SCLK_PORT, DAC_SCLK_PIN, GPIO_PIN_RESET);
-
-        __NOP(); __NOP();  /* Clock low time */
+        port->BRR = DAC_SCLK_PIN;
+        rt_hw_us_delay(1);  /* Clock low time (~1us) */
     }
 
-    /* Pull SYNC high to latch data */
-    HAL_GPIO_WritePin(DAC_SYNC_PORT, DAC_SYNC_PIN, GPIO_PIN_SET);
+    /* Pull SYNC high to latch frame */
+    rt_hw_us_delay(1);
+    port->BSRR = DAC_SYNC_PIN;
 }
 
 /* ============================================================================
@@ -100,9 +99,9 @@ void dac7311_init(void)
     HAL_GPIO_Init(GPIOB, &gpio);
 
     /* Set idle state: SYNC=HIGH, SCLK=LOW, DIN=LOW */
-    HAL_GPIO_WritePin(DAC_SYNC_PORT, DAC_SYNC_PIN, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(DAC_SCLK_PORT, DAC_SCLK_PIN, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(DAC_DIN_PORT, DAC_DIN_PIN, GPIO_PIN_RESET);
+    DAC_GPIO_PORT->BSRR = DAC_SYNC_PIN;       /* SYNC = HIGH */
+    DAC_GPIO_PORT->BRR  = DAC_SCLK_PIN;       /* SCLK = LOW  */
+    DAC_GPIO_PORT->BRR  = DAC_DIN_PIN;        /* DIN  = LOW  */
 
     /* Output 0V */
     dac7311_set_voltage(0.0f);
@@ -130,6 +129,8 @@ void dac7311_set_voltage(float voltage)
     /* Update state */
     s_dac_raw = value;
     s_dac_voltage = voltage;
+
+    rt_kprintf("[DAC7311] set %.3fV -> raw=%d frame=0x%04X\n", voltage, value, frame);
 }
 
 void dac7311_set_raw(uint16_t value)
