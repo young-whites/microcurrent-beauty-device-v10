@@ -22,41 +22,79 @@
 #include "main.h"
 
 /* ============================================================================
- *  GPIO Pin Definitions (direct BSRR/BRR register access for speed)
+ *  GPIO Pin Definitions (direct register access)
  * ===========================================================================*/
-#define DAC_GPIO_PORT       GPIOB
 #define DAC_SYNC_PIN        GPIO_PIN_7
 #define DAC_SCLK_PIN        GPIO_PIN_8
 #define DAC_DIN_PIN         GPIO_PIN_9
+#define DAC_GPIO_PORT       GPIOB
 
 /* ============================================================================
  *  Internal State
  * ===========================================================================*/
-static float s_dac_voltage = 0.0f;  /* Current output voltage */
-static uint16_t s_dac_raw = 0;      /* Current raw 14-bit value */
+static float s_dac_voltage = 0.0f;
+static uint16_t s_dac_raw = 0;
+static uint32_t s_dac_delay_us = 0;  /* 0 = fast mode (NOP), >0 = delay per step in us */
 
 /* ============================================================================
- *  Internal: GPIO Bit-Bang SPI
+ *  Configurable Delay
+ * ===========================================================================*/
+
+/**
+ * @brief  Set SPI clock delay. Controls SCLK high/low time.
+ * @param  delay_us  Delay per step in microseconds. 0 = fast mode (~140ns).
+ */
+void dac7311_set_delay(uint32_t delay_us)
+{
+    s_dac_delay_us = delay_us;
+}
+
+uint32_t dac7311_get_delay(void)
+{
+    return s_dac_delay_us;
+}
+
+/**
+ * @brief  SPI clock step delay.
+ *         If s_dac_delay_us == 0: fast mode, ~140ns NOP-based.
+ *         If s_dac_delay_us > 0:  blocking delay in microseconds.
+ */
+static void dac_delay(void)
+{
+    if (s_dac_delay_us == 0) {
+        /* Fast mode: ~10 NOPs ~= 140ns at 72MHz */
+        __asm__ volatile("nop"); __asm__ volatile("nop");
+        __asm__ volatile("nop"); __asm__ volatile("nop");
+        __asm__ volatile("nop"); __asm__ volatile("nop");
+        __asm__ volatile("nop"); __asm__ volatile("nop");
+        __asm__ volatile("nop"); __asm__ volatile("nop");
+    } else {
+        /* Configurable delay: use busy-wait loop */
+        volatile uint32_t count = s_dac_delay_us * 12;  /* ~12 loops/us at 72MHz */
+        while (count--);
+    }
+}
+
+/* ============================================================================
+ *  Internal: GPIO Bit-Bang SPI (BSRR register, no HAL overhead)
  * ===========================================================================*/
 
 /**
  * @brief  Write 16-bit frame to DAC via software SPI.
- *         Frame format: [M1 M0 D13 D12 ... D1 D0 R R]
+ *         Uses direct BSRR/BRR register access for deterministic timing.
  *         SPI Mode 0: CPOL=0, CPHA=0, MSB first.
- *         Data latched on SCLK rising edge by DAC.
- *
- * @param  data  16-bit frame data.
  */
 static void dac7311_write_frame(uint16_t data)
 {
     GPIO_TypeDef *port = DAC_GPIO_PORT;
 
-    /* Pull SYNC low to start transaction */
+    /* ---- Start: Pull SYNC low ---- */
     port->BRR = DAC_SYNC_PIN;
-    rt_hw_us_delay(1);  /* SYNC setup time */
+    dac_delay(); dac_delay();
 
-    /* Clock out 16 bits, MSB first */
+    /* ---- Clock out 16 bits, MSB first ---- */
     for (int8_t bit = 15; bit >= 0; bit--) {
+
         /* Set DIN before SCLK rising edge */
         if (data & (1 << bit)) {
             port->BSRR = DAC_DIN_PIN;    /* DIN = HIGH */
@@ -64,19 +102,19 @@ static void dac7311_write_frame(uint16_t data)
             port->BRR  = DAC_DIN_PIN;    /* DIN = LOW  */
         }
 
-        rt_hw_us_delay(1);  /* Data setup time (~1us) */
+        dac_delay();  /* Data setup time */
 
-        /* SCLK rising edge (DAC latches data here) */
+        /* SCLK rising edge (latch data) */
         port->BSRR = DAC_SCLK_PIN;
-        rt_hw_us_delay(1);  /* Clock high time (~1us) */
+        dac_delay();  /* Clock high time */
 
         /* SCLK falling edge */
         port->BRR = DAC_SCLK_PIN;
-        rt_hw_us_delay(1);  /* Clock low time (~1us) */
+        dac_delay();  /* Clock low time */
     }
 
-    /* Pull SYNC high to latch frame */
-    rt_hw_us_delay(1);
+    /* ---- Latch: Pull SYNC high ---- */
+    dac_delay();
     port->BSRR = DAC_SYNC_PIN;
 }
 
@@ -91,12 +129,14 @@ void dac7311_init(void)
     /* Enable GPIOB clock */
     __HAL_RCC_GPIOB_CLK_ENABLE();
 
-    /* Configure SYNC (PB7), SCLK (PB8), DIN (PB9) as push-pull outputs */
+    /* Configure SYNC (PB7), SCLK (PB8), DIN (PB9) as push-pull outputs.
+     * Direct 3.3V drive, no external pull-ups needed.
+     * VIH threshold may be marginal but often works in practice. */
     gpio.Pin   = DAC_SYNC_PIN | DAC_SCLK_PIN | DAC_DIN_PIN;
     gpio.Mode  = GPIO_MODE_OUTPUT_PP;
     gpio.Speed = GPIO_SPEED_FREQ_HIGH;
     gpio.Pull  = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOB, &gpio);
+    HAL_GPIO_Init(DAC_GPIO_PORT, &gpio);
 
     /* Set idle state: SYNC=HIGH, SCLK=LOW, DIN=LOW */
     DAC_GPIO_PORT->BSRR = DAC_SYNC_PIN;       /* SYNC = HIGH */
@@ -154,7 +194,6 @@ void dac7311_set_percent(uint8_t percent)
 
 void dac7311_power_down(uint8_t mode)
 {
-    /* Power-down frame: [MODE(2) 0...0 RSVD(2)] */
     uint16_t frame = ((uint16_t)(mode & 0x03) << 14);
     dac7311_write_frame(frame);
 
@@ -169,42 +208,27 @@ float dac7311_get_voltage(void)
     return s_dac_voltage;
 }
 
+void dac7311_write_raw_frame(uint16_t frame)
+{
+    dac7311_write_frame(frame);
+}
+
 /* ============================================================================
  *  Pump Speed Control (non-linear voltage mapping)
  * ===========================================================================*/
 
-/*
- * Pump voltage zones:
- *   0.0V ~ 0.5V  : Dead zone   (pump does not rotate)
- *   0.6V ~ 4.5V  : Control zone (linear speed regulation)
- *   4.6V ~ 5.0V  : Saturation   (full load, constant max speed)
- *
- * Percentage mapping (upper machine 0~100%):
- *   0%       -> 0.0V (off)
- *   1%~90%   -> 0.6V ~ 4.5V  (control zone, linear)
- *   91%~100% -> 4.6V ~ 5.0V  (saturation zone, linear)
- */
 void dac7311_set_pump_speed(uint8_t percent)
 {
     float voltage;
 
     if (percent == 0) {
-        /* Off: output 0V */
         voltage = 0.0f;
     } else if (percent <= PUMP_CTRL_MAX_PCT) {
-        /*
-         * Control zone: 1%~90% -> 0.6V~4.5V
-         * Linear interpolation:
-         *   V = PUMP_CTRL_MIN_V + (pct-1) / (PUMP_CTRL_MAX_PCT-1) * (PUMP_CTRL_MAX_V - PUMP_CTRL_MIN_V)
-         */
+        /* Control zone: 1%~90% -> 0.6V~4.5V */
         float ratio = (float)(percent - 1) / (float)(PUMP_CTRL_MAX_PCT - 1);
         voltage = PUMP_CTRL_MIN_V + ratio * (PUMP_CTRL_MAX_V - PUMP_CTRL_MIN_V);
     } else {
-        /*
-         * Saturation zone: 91%~100% -> 4.6V~5.0V
-         * Linear interpolation:
-         *   V = PUMP_SAT_MIN_V + (pct-91) / (100-91) * (PUMP_SAT_MAX_V - PUMP_SAT_MIN_V)
-         */
+        /* Saturation zone: 91%~100% -> 4.6V~5.0V */
         float ratio = (float)(percent - PUMP_CTRL_MAX_PCT - 1) / (float)(100 - PUMP_CTRL_MAX_PCT - 1);
         voltage = PUMP_SAT_MIN_V + ratio * (PUMP_SAT_MAX_V - PUMP_SAT_MIN_V);
     }

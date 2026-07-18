@@ -61,6 +61,27 @@ extern "C" {
  */
 
 /* ============================================================================
+ *  Pump Speed Control (non-linear voltage mapping)
+ * ===========================================================================*/
+/*
+ * Pump voltage zones:
+ *   0.0V ~ 0.5V  : Dead zone   (pump does not rotate)
+ *   0.6V ~ 4.5V  : Control zone (linear speed regulation)
+ *   4.6V ~ 5.0V  : Saturation   (full load, constant max speed)
+ *
+ * Percentage mapping (upper machine 0~100%):
+ *   0%       -> 0.0V (off)
+ *   1%~90%   -> 0.6V ~ 4.5V  (control zone, linear)
+ *   91%~100% -> 4.6V ~ 5.0V  (saturation zone, linear)
+ */
+#define PUMP_DEAD_ZONE_MAX_V    0.5f    /* Dead zone upper limit (V) */
+#define PUMP_CTRL_MIN_V         0.6f    /* Control zone lower limit (V) */
+#define PUMP_CTRL_MAX_V         4.5f    /* Control zone upper limit (V) */
+#define PUMP_SAT_MIN_V          4.6f    /* Saturation zone lower limit (V) */
+#define PUMP_SAT_MAX_V          5.0f    /* Saturation zone upper limit (V) */
+#define PUMP_CTRL_MAX_PCT       90      /* Control zone upper percentage */
+
+/* ============================================================================
  *  Public Functions
  * ===========================================================================*/
 
@@ -85,38 +106,10 @@ void dac7311_set_raw(uint16_t value);
 
 /**
  * @brief  Set DAC output as percentage (0~100%).
- *         Maps 0~100% to 0~VREF voltage (linear).
+ *         Maps 0~100% to 0~VREF voltage.
  * @param  percent  Output percentage (0 ~ 100).
  */
 void dac7311_set_percent(uint8_t percent);
-
-/* ============================================================================
- *  Pump Speed Control (non-linear voltage mapping)
- * ===========================================================================*/
-/*
- * Pump voltage zones:
- *   0.0V ~ 0.5V  : Dead zone   (pump does not rotate)
- *   0.6V ~ 4.5V  : Control zone (linear speed regulation)
- *   4.6V ~ 5.0V  : Saturation   (full load, constant max speed)
- *
- * Percentage mapping (upper machine 0~100%):
- *   0%       -> 0.0V (off)
- *   1%~90%   -> 0.6V ~ 4.5V  (control zone, linear)
- *   91%~100% -> 4.6V ~ 5.0V  (saturation zone, linear)
- */
-#define PUMP_DEAD_ZONE_MAX_V    0.5f    /* Dead zone upper limit (V) */
-#define PUMP_CTRL_MIN_V         0.6f    /* Control zone lower limit (V) */
-#define PUMP_CTRL_MAX_V         4.5f    /* Control zone upper limit (V) */
-#define PUMP_SAT_MIN_V          4.6f    /* Saturation zone lower limit (V) */
-#define PUMP_SAT_MAX_V          5.0f    /* Saturation zone upper limit (V) */
-#define PUMP_CTRL_MAX_PCT       90      /* Control zone upper percentage */
-
-/**
- * @brief  Set pump speed by percentage with non-linear voltage mapping.
- *         Handles dead zone, control zone, and saturation zone.
- * @param  percent  Pump speed (0 = off, 1~100 = speed level).
- */
-void dac7311_set_pump_speed(uint8_t percent);
 
 /**
  * @brief  Set power-down mode.
@@ -129,6 +122,32 @@ void dac7311_power_down(uint8_t mode);
  * @return Current voltage setting (V).
  */
 float dac7311_get_voltage(void);
+
+/**
+ * @brief  Write raw 16-bit frame directly to DAC.
+ *         Frame format: [M1 M0 D13 D12 ... D0 R R]
+ * @param  frame  16-bit frame to write.
+ */
+void dac7311_write_raw_frame(uint16_t frame);
+
+/**
+ * @brief  Set SPI clock delay (controls SCLK high/low time).
+ * @param  delay_us  Delay in microseconds. 0 = fast mode (~140ns).
+ */
+void dac7311_set_delay(uint32_t delay_us);
+
+/**
+ * @brief  Get current SPI clock delay.
+ * @return Delay in microseconds (0 = fast mode).
+ */
+uint32_t dac7311_get_delay(void);
+
+/**
+ * @brief  Set pump speed by percentage with non-linear voltage mapping.
+ *         Handles dead zone, control zone, and saturation zone.
+ * @param  percent  Pump speed (0 = off, 1~100 = speed level).
+ */
+void dac7311_set_pump_speed(uint8_t percent);
 
 #ifdef __cplusplus
 }
