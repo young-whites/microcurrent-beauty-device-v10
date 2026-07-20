@@ -32,15 +32,15 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .max_current     = 30,       /* Maximum output current 80 mA */
         .frequency       = 50,       /* Waveform frequency 50 Hz */
         .pulse_width_us  = 300,      /* Pulse width 300 us */
-        .waveform_type   = WAVEFORM_TYPE_SQUARE,     /* Square wave */
-        .gen_method      = GEN_METHOD_PRELOADED,      /* Use preloaded waveform */
+        .waveform_type   = WAVEFORM_TYPE_SQUARE,     /* Square wave (edge-softened) */
+        .gen_method      = GEN_METHOD_CUSTOM_SPI,      /* Custom SPI softened waveform */
         .point_num       = 64,       /* 64 points */
         .half_wave_clk   = 20000,   /* 2000000 / (2*50) = 20000 */
         .silent_time     = 600,     /* 300 * 2 = 600 */
         .rest_time       = 0,       /* No dead zone */
         .carrier_clk     = 0,       /* Not AM mode */
         .am_interval     = 0,       /* Not AM mode */
-        .waveform_data   = NULL     /* Preloaded mode, no custom data needed */
+        .waveform_data   = softened_square_waveform_64  /* Edge-softened square */
     },
 
     /* ---- Waveform 2: Burst Train ---- */
@@ -60,7 +60,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .rest_time       = 0,
         .carrier_clk     = 0,
         .am_interval     = 0,
-        .waveform_data   = burst_pulse_64  /* Burst pulse data (v10 naming) */
+        .waveform_data   = softened_burst_pulse_64  /* Edge-softened gaussian burst */
     },
 
     /* ---- Waveform 3: Gentle Smooth ---- */
@@ -72,15 +72,15 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .max_current     = 30,       /* Lower maximum current */
         .frequency       = 35,       /* Lower frequency 35 Hz */
         .pulse_width_us  = 300,
-        .waveform_type   = WAVEFORM_TYPE_SQUARE,
-        .gen_method      = GEN_METHOD_PRELOADED,
+        .waveform_type   = WAVEFORM_TYPE_SQUARE,     /* Square wave (edge-softened) */
+        .gen_method      = GEN_METHOD_CUSTOM_SPI,      /* Custom SPI softened waveform */
         .point_num       = 64,
         .half_wave_clk   = 28571,   /* 2000000 / (2*35) = 28571 */
         .silent_time     = 600,     /* 300 * 2 = 600 */
         .rest_time       = 0,
         .carrier_clk     = 0,
         .am_interval     = 0,
-        .waveform_data   = NULL
+        .waveform_data   = softened_square_waveform_64  /* Edge-softened square */
     },
 
     /* ---- Waveform 4: Deep Sculpt ---- */
@@ -154,15 +154,15 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .max_current     = 30,
         .frequency       = 100,      /* High frequency 100 Hz */
         .pulse_width_us  = 400,      /* Pulse width 400 us */
-        .waveform_type   = WAVEFORM_TYPE_TRIANGLE,       /* Triangle wave */
-        .gen_method      = GEN_METHOD_PRELOADED,          /* Preloaded mode */
+        .waveform_type   = WAVEFORM_TYPE_TRIANGLE,       /* Triangle wave (edge-softened) */
+        .gen_method      = GEN_METHOD_CUSTOM_SPI,          /* Custom SPI softened waveform */
         .point_num       = 64,
         .half_wave_clk   = 10000,   /* 2000000 / (2*100) = 10000 */
         .silent_time     = 800,     /* 400 * 2 = 800 */
         .rest_time       = 0,
         .carrier_clk     = 0,
         .am_interval     = 0,
-        .waveform_data   = NULL
+        .waveform_data   = softened_triangle_waveform_64  /* Edge-softened triangle */
     },
 
     /* ---- Waveform 8: Lymphatic Drainage ---- */
