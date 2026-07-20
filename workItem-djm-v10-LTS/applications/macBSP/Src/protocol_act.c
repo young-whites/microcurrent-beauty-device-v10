@@ -272,15 +272,15 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
     g_dev_state.handle[hi].current_ma = current_ma;
     g_dev_state.handle[hi].current_percent = percent;
 
-    /* If this is the active handle and treatment is running, update amplitude */
+    /* If this is the active handle and treatment is running, update output */
     if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
-        uint8_t chip_id = handle_to_chip(hi);
-        uint8_t channel = handle_to_channel(hi);
         if (percent == 0) {
+            uint8_t chip_id = handle_to_chip(hi);
+            uint8_t channel = handle_to_channel(hi);
             nnc6521_awg_enable_disable(chip_id, channel, 0);
             rt_kprintf("[PROTO] Current 0%%, AWG disabled\n");
         } else {
-            waveform_update_amplitude(chip_id, channel, g_dev_state.waveform_id, percent);
+            handle_apply_output(hi);
         }
     }
 
