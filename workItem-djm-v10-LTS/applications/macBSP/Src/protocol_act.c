@@ -278,8 +278,7 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         uint8_t channel = handle_to_channel(hi);
         if (percent == 0) {
             nnc6521_awg_enable_disable(chip_id, channel, 0);
-            rt_kprintf("[PROTO] Current 0%%, AWG disabled
-");
+            rt_kprintf("[PROTO] Current 0%%, AWG disabled\n");
         } else {
             waveform_update_amplitude(chip_id, channel, g_dev_state.waveform_id, percent);
         }
