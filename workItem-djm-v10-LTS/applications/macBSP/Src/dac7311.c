@@ -221,8 +221,24 @@ void dac7311_write_raw_frame(uint16_t frame)
 
 void dac7311_set_pump_speed(uint8_t percent)
 {
-    /* Simple linear mapping: 0% -> 0V, 100% -> 5V */
-    dac7311_set_percent(percent);
+    if (percent > 100) percent = 100;
+
+    float voltage;
+
+    if (percent == 0) {
+        /* 0% -> 0V, motor off */
+        voltage = 0.0f;
+    } else if (percent <= PUMP_CTRL_MAX_PCT) {
+        /* 1%~99% -> linear map to [PUMP_CTRL_MIN_V, PUMP_CTRL_MAX_V) */
+        voltage = PUMP_CTRL_MIN_V +
+                  (float)(percent - 1) / (float)(PUMP_CTRL_MAX_PCT - 1) *
+                  (PUMP_CTRL_MAX_V - PUMP_CTRL_MIN_V);
+    } else {
+        /* 100% -> full load, 5.0V */
+        voltage = PUMP_SAT_MAX_V;
+    }
+
+    dac7311_set_voltage(voltage);
 
     rt_kprintf("[PUMP] speed=%u%% -> voltage=%.2fV\n", percent, dac7311_get_voltage());
 }

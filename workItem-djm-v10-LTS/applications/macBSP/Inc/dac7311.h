@@ -65,21 +65,21 @@ extern "C" {
  * ===========================================================================*/
 /*
  * Pump voltage zones:
- *   0.0V ~ 0.5V  : Dead zone   (pump does not rotate)
- *   0.6V ~ 4.5V  : Control zone (linear speed regulation)
- *   4.6V ~ 5.0V  : Saturation   (full load, constant max speed)
+ *   0.0V ~ 1.0V  : Dead zone   (motor does not start)
+ *   1.0V ~ 4.5V  : Control zone (linear speed regulation)
+ *   4.5V ~ 5.0V  : Saturation   (full load, constant max speed)
  *
  * Percentage mapping (upper machine 0~100%):
- *   0%       -> 0.0V (off)
- *   1%~90%   -> 0.6V ~ 4.5V  (control zone, linear)
- *   91%~100% -> 4.6V ~ 5.0V  (saturation zone, linear)
+ *   0%       -> 0.0V    (off, motor does not start)
+ *   1%~99%   -> 1.0V ~ 4.5V  (control zone, linear)
+ *   100%     -> 5.0V    (full load)
  */
-#define PUMP_DEAD_ZONE_MAX_V    0.5f    /* Dead zone upper limit (V) */
-#define PUMP_CTRL_MIN_V         0.6f    /* Control zone lower limit (V) */
+#define PUMP_DEAD_ZONE_MAX_V    1.0f    /* Dead zone upper limit: 0~1V (motor off) */
+#define PUMP_CTRL_MIN_V         1.0f    /* Control zone lower limit (V) */
 #define PUMP_CTRL_MAX_V         4.5f    /* Control zone upper limit (V) */
-#define PUMP_SAT_MIN_V          4.6f    /* Saturation zone lower limit (V) */
+#define PUMP_SAT_MIN_V          4.5f    /* Saturation zone lower limit (V) */
 #define PUMP_SAT_MAX_V          5.0f    /* Saturation zone upper limit (V) */
-#define PUMP_CTRL_MAX_PCT       90      /* Control zone upper percentage */
+#define PUMP_CTRL_MAX_PCT       99      /* Control zone upper percentage */
 
 /* ============================================================================
  *  Public Functions
