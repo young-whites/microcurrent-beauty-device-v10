@@ -198,12 +198,12 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .description     = "Soothing ending sine wave",
         .min_current     = 0,
         .max_current     = 80,
-        .frequency       = 10,       /* Low frequency 10 Hz */
+        .frequency       = 500,      /* 500 Hz */
         .pulse_width_us  = 0,        /* No pulse width */
         .waveform_type   = WAVEFORM_TYPE_SINE,
         .gen_method      = GEN_METHOD_CUSTOM_SPI,         /* Custom SPI sine */
         .point_num       = 64,
-        .half_wave_clk   = 12500,   /* PCLK/8: 250000/(2*10) = 12500 */
+        .half_wave_clk   = 2000,    /* 2000000/(2*500) = 2000 */
         .silent_time     = 0,       /* Continuous sine wave, no silent period */
         .rest_time       = 0,
         .carrier_clk     = 0,
@@ -351,7 +351,7 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
                 if (waveform_id == 8) {
                     set_pclk_divider(chip_id, PCLK_DIV_16);
                 } else if (waveform_id == 6 || waveform_id == 9) {
-                    set_pclk_divider(chip_id, PCLK_DIV_16);  /* 125kHz for 10Hz waveforms */
+                    set_pclk_divider(chip_id, PCLK_DIV_16);  /* 125kHz for low-freq waveforms */
                 }
 
                 nnc6521_customized_waveform(chip_id, channel,
@@ -365,7 +365,7 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
                                             0);  /* asymmetric */
 
                 /* Restore PCLK to default */
-                if (waveform_id == 6 || waveform_id == 8 || waveform_id == 9) {
+                if (waveform_id == 6 || waveform_id == 8) {
                     set_pclk_divider(chip_id, PCLK_DIV_1);
                 }
             }

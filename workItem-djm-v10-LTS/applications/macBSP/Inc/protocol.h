@@ -83,7 +83,7 @@ extern "C" {
 #define WAVEFORM_CIRCUL_SCULPT      6   /* 0~80mA, 2~10Hz, 4kHz bal. sine */
 #define WAVEFORM_SMOOTH_FIRM        7   /* 0~80mA, 80~100Hz, 400us, tri */
 #define WAVEFORM_LYMPH_DRAIN        8   /* 0~80mA, 5Hz, 450us, low-freq sine */
-#define WAVEFORM_SOOTHING_END       9   /* 0~80mA, 10Hz, low-freq sine */
+#define WAVEFORM_SOOTHING_END       9   /* 0~80mA, 500Hz, sine */
 
 /* ============================================================================
  *  Protocol Buffer Configuration
