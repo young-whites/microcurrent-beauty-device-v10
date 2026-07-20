@@ -77,13 +77,13 @@ extern "C" {
  * ===========================================================================*/
 #define WAVEFORM_POWER_SMOOTH       1   /* 30~80mA, 50Hz, 300us, symm. square */
 #define WAVEFORM_BURST_TRAIN        2   /* 30~80mA, 50Hz burst 10Hz, 300us */
-#define WAVEFORM_GENTLE_SMOOTH      3   /* 20~60mA, 35Hz, 300us, symm. square */
+#define WAVEFORM_GENTLE_SMOOTH      3   /* 0~80mA, 35Hz, 300us, symm. square */
 #define WAVEFORM_DEEP_SCULPT        4   /* 30~80mA, 40~50Hz, 4kHz balanced sq */
 #define WAVEFORM_SOFT_SCULPT        5   /* 30~80mA, 30~40Hz, 2~4kHz sine */
-#define WAVEFORM_CIRCUL_SCULPT      6   /* 20~60mA, 2~10Hz, 4kHz bal. sine */
-#define WAVEFORM_SMOOTH_FIRM        7   /* 15~50mA, 80~100Hz, 400us, tri */
-#define WAVEFORM_LYMPH_DRAIN        8   /* 15~40mA, 5Hz, 450us, low-freq sine */
-#define WAVEFORM_SOOTHING_END       9   /* 10~30mA, 10Hz, low-freq sine */
+#define WAVEFORM_CIRCUL_SCULPT      6   /* 0~80mA, 2~10Hz, 4kHz bal. sine */
+#define WAVEFORM_SMOOTH_FIRM        7   /* 0~80mA, 80~100Hz, 400us, tri */
+#define WAVEFORM_LYMPH_DRAIN        8   /* 0~80mA, 5Hz, 450us, low-freq sine */
+#define WAVEFORM_SOOTHING_END       9   /* 0~80mA, 10Hz, low-freq sine */
 
 /* ============================================================================
  *  Protocol Buffer Configuration

@@ -534,21 +534,8 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.waveform_id = waveform_id;
 
-    /* Recalculate percent for all handles based on new waveform range */
-    for (int i = 0; i < 3; i++) {
-        if (g_dev_state.handle[i].current_ma > 0) {
-            const waveform_config_t *new_cfg = waveform_get_config(waveform_id);
-            if (new_cfg) {
-                uint16_t ma = g_dev_state.handle[i].current_ma;
-                if (ma < new_cfg->min_current) ma = new_cfg->min_current;
-                if (ma > new_cfg->max_current) ma = new_cfg->max_current;
-                uint32_t range = new_cfg->max_current - new_cfg->min_current;
-                g_dev_state.handle[i].current_percent = (range > 0) ?
-                    ((ma - new_cfg->min_current) * 100 / range) : 0;
-                g_dev_state.handle[i].current_ma = ma;
-            }
-        }
-    }
+    /* All waveforms share 0~80mA range, percent mapping is identical.
+     * No recalculation needed on waveform switch. */
 
     /* If treatment is running, apply new waveform immediately */
     int hi = protocol_handle_index(g_dev_state.current_handle);
