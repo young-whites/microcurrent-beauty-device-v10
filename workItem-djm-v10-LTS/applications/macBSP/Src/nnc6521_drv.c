@@ -769,12 +769,12 @@ static uint32_t Current_Output(uint8_t chip_id, uint32_t current, uint8_t channe
     uint8_t tSeg;
     uint16_t Dref;
 
-    uint32_t Ireq = current * 1;
+    uint32_t Ireq = current;  /* Input is in μA */
     float Ival_f;
     uint32_t Ival;
 
     Dref = GetDrefIselIseg(chip_id, channel, current, &tSeg);
-    Ival_f = (float)(((float)Ireq * 1000) / ((float)Dref));
+    Ival_f = (float)(((float)Ireq) / ((float)Dref));
     Ival = (uint32_t)(Ival_f + 0.5f);
     Ival = (4096 < Ival) ? 4096 : Ival;
     return Ival;
