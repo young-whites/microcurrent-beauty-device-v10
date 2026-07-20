@@ -276,7 +276,13 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
     if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
-        waveform_update_amplitude(chip_id, channel, g_dev_state.waveform_id, percent);
+        if (percent == 0) {
+            nnc6521_awg_enable_disable(chip_id, channel, 0);
+            rt_kprintf("[PROTO] Current 0%%, AWG disabled
+");
+        } else {
+            waveform_update_amplitude(chip_id, channel, g_dev_state.waveform_id, percent);
+        }
     }
 
     rt_kprintf("[PROTO] Current set: handle %c = %u mA (%u%%)\n", 'A' + hi, current_ma, percent);
