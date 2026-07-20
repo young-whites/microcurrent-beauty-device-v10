@@ -350,7 +350,7 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
                 /* Low-freq waveforms need reduced PCLK to fit 16-bit register */
                 if (waveform_id == 8) {
                     set_pclk_divider(chip_id, PCLK_DIV_16);
-                } else if (waveform_id == 6 || waveform_id == 9) {
+                } else if (waveform_id == 6) {
                     set_pclk_divider(chip_id, PCLK_DIV_16);  /* 125kHz for low-freq waveforms */
                 }
 
