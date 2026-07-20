@@ -203,7 +203,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_SINE,
         .gen_method      = GEN_METHOD_CUSTOM_SPI,         /* Custom SPI sine */
         .point_num       = 64,
-        .half_wave_clk   = 2000,    /* 2000000/(2*500) = 2000 */
+        .half_wave_clk   = 33,      /* ~500Hz: 2124800/(2*33*64) = 503Hz */
         .silent_time     = 0,       /* Continuous sine wave, no silent period */
         .rest_time       = 0,
         .carrier_clk     = 0,
