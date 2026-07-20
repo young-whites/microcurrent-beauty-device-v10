@@ -75,15 +75,15 @@ extern "C" {
 /* ============================================================================
  *  Waveform Definitions
  * ===========================================================================*/
-#define WAVEFORM_POWER_SMOOTH       1   /* 30~80mA, 50Hz, 300us, symm. square */
-#define WAVEFORM_BURST_TRAIN        2   /* 30~80mA, 50Hz burst 10Hz, 300us */
-#define WAVEFORM_GENTLE_SMOOTH      3   /* 0~80mA, 35Hz, 300us, symm. square */
-#define WAVEFORM_DEEP_SCULPT        4   /* 30~80mA, 40~50Hz, 4kHz balanced sq */
-#define WAVEFORM_SOFT_SCULPT        5   /* 30~80mA, 30~40Hz, 2~4kHz sine */
-#define WAVEFORM_CIRCUL_SCULPT      6   /* 0~80mA, 2~10Hz, 4kHz bal. sine */
-#define WAVEFORM_SMOOTH_FIRM        7   /* 0~80mA, 80~100Hz, 400us, tri */
-#define WAVEFORM_LYMPH_DRAIN        8   /* 0~80mA, 5Hz, 450us, low-freq sine */
-#define WAVEFORM_SOOTHING_END       9   /* 0~80mA, 500Hz, sine */
+#define WAVEFORM_POWER_SMOOTH       1   /* 30~30mA, 50Hz, 300us, symm. square */
+#define WAVEFORM_BURST_TRAIN        2   /* 30~30mA, 50Hz burst 10Hz, 300us */
+#define WAVEFORM_GENTLE_SMOOTH      3   /* 0~30mA, 35Hz, 300us, symm. square */
+#define WAVEFORM_DEEP_SCULPT        4   /* 30~30mA, 40~50Hz, 4kHz balanced sq */
+#define WAVEFORM_SOFT_SCULPT        5   /* 30~30mA, 30~40Hz, 2~4kHz sine */
+#define WAVEFORM_CIRCUL_SCULPT      6   /* 0~30mA, 2~10Hz, 4kHz bal. sine */
+#define WAVEFORM_SMOOTH_FIRM        7   /* 0~30mA, 80~100Hz, 400us, tri */
+#define WAVEFORM_LYMPH_DRAIN        8   /* 0~30mA, 5Hz, 450us, low-freq sine */
+#define WAVEFORM_SOOTHING_END       9   /* 0~30mA, 500Hz, sine */
 
 /* ============================================================================
  *  Protocol Buffer Configuration
