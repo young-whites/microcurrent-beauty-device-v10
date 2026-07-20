@@ -198,12 +198,12 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .description     = "Soothing ending sine wave",
         .min_current     = 0,
         .max_current     = 5,
-        .frequency       = 500,      /* 500 Hz */
+        .frequency       = 1000,     /* 1000 Hz */
         .pulse_width_us  = 0,        /* No pulse width */
         .waveform_type   = WAVEFORM_TYPE_SINE,
         .gen_method      = GEN_METHOD_CUSTOM_SPI,         /* Custom SPI sine */
         .point_num       = 64,
-        .half_wave_clk   = 33,      /* ~500Hz: 2124800/(2*33*64) = 503Hz */
+        .half_wave_clk   = 17,      /* ~1kHz: 2124800/(2*17*64) = 975Hz */
         .silent_time     = 0,       /* Continuous sine wave, no silent period */
         .rest_time       = 0,
         .carrier_clk     = 0,
