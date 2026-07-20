@@ -244,7 +244,7 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    uint16_t current_ua = params[0] * 10;  /* Protocol value 0~100 -> μA: 0~1000 */
+    uint16_t current_ma = params[0];  /* mA value from upper machine (single byte, 0~100) */
     uint8_t handle_id = params[1];
 
     int hi = protocol_handle_index(handle_id);
@@ -253,7 +253,7 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Validate against current waveform's range (all waveforms: 0~1000μA) */
+    /* Validate against current waveform's range */
     const waveform_config_t *cfg = waveform_get_config(g_dev_state.waveform_id);
     if (cfg == NULL) {
         protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
@@ -261,15 +261,15 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
     }
 
     /* Clamp to waveform range */
-    if (current_ua < cfg->min_current) current_ua = cfg->min_current;
-    if (current_ua > cfg->max_current) current_ua = cfg->max_current;
+    if (current_ma < cfg->min_current) current_ma = cfg->min_current;
+    if (current_ma > cfg->max_current) current_ma = cfg->max_current;
 
-    /* Convert μA to percentage for NNC6521 driver */
+    /* Convert mA to percentage for NNC6521 driver */
     uint32_t range = cfg->max_current - cfg->min_current;
-    uint8_t percent = (range > 0) ? ((current_ua - cfg->min_current) * 100 / range) : 0;
+    uint8_t percent = (range > 0) ? ((current_ma - cfg->min_current) * 100 / range) : 0;
 
     /* Store both values */
-    g_dev_state.handle[hi].current_ma = current_ua;  /* reuse field, now stores μA */
+    g_dev_state.handle[hi].current_ma = current_ma;
     g_dev_state.handle[hi].current_percent = percent;
 
     /* If this is the active handle and treatment is running, update output */
@@ -278,15 +278,15 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
             uint8_t chip_id = handle_to_chip(hi);
             uint8_t channel = handle_to_channel(hi);
             nnc6521_awg_enable_disable(chip_id, channel, 0);
-            rt_kprintf("[PROTO] Current 0uA, AWG disabled\n");
+            rt_kprintf("[PROTO] Current 0%%, AWG disabled\n");
         } else {
             handle_apply_output(hi);
         }
     }
 
-    rt_kprintf("[PROTO] Current set: handle %c = %u uA (%u%%)\n", 'A' + hi, current_ua, percent);
+    rt_kprintf("[PROTO] Current set: handle %c = %u mA (%u%%)\n", 'A' + hi, current_ma, percent);
 
-    uint8_t ack_params[2] = { params[0], handle_id };
+    uint8_t ack_params[2] = { (uint8_t)current_ma, handle_id };
     protocol_send_ack(FUNC_CURRENT_CTRL, ack_params, 2);
 }
 
