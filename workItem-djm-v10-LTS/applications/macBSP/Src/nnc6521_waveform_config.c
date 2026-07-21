@@ -224,13 +224,13 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
 
 const uint32_t g_current_level_map[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT] = {
     /* Waveform 1: Power Smooth — Linear */
-    { 0, 800, 1600, 2400, 3200, 4000, 4800, 5600, 6400, 7200, 8000 },
+    { 0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000 },
 
     /* Waveform 2: Burst Train — Sqrt (front-steep, back-gradual) */
-    { 0, 2530, 3578, 4382, 5060, 5657, 6197, 6693, 7155, 7590, 8000 },
+    { 0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000 },
 
     /* Waveform 3: Gentle Smooth — Exponential (front-gradual, back-steep) */
-    { 0, 89, 198, 439, 975, 2164, 3429, 5001, 6416, 7488, 8000 },
+    { 0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000 },
 
     /* Waveform 4: Deep Sculpt — S-curve (slow start, fast middle, slow end) */
     { 0, 237, 1054, 2532, 4000, 5258, 6304, 7126, 7736, 7970, 8000 },
@@ -245,7 +245,7 @@ const uint32_t g_current_level_map[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT] = {
     { 0, 80, 320, 720, 1280, 2000, 2880, 3920, 5120, 6480, 8000 },
 
     /* Waveform 8: Lymphatic Drainage — Cubic (extremely gentle start, steep end) */
-    { 0, 1, 8, 27, 64, 125, 216, 343, 512, 1000, 8000 },
+    { 0, 500, 700, 900, 1100, 1300, 1500, 1700, 1900, 2100, 2300 },
 
     /* Waveform 9: Soothing Ending — Parabolic (mid-peak, symmetric taper) */
     { 0, 1536, 2944, 4224, 5376, 6400, 7296, 7552, 7744, 7904, 8000 }
