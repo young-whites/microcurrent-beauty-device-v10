@@ -35,7 +35,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_SQUARE,     /* Square wave (edge-softened) */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,      /* Custom SPI softened waveform */
         .point_num       = 64,       /* 64 points */
-        .half_wave_clk   = 20000,   /* 2000000 / (2*50) = 20000 */
+        .half_wave_clk   = 10000,   /* TEST A: reverse-engineer timing */
         .silent_time     = 300,     /* 150 * 2 = 300 */
         .rest_time       = 0,       /* No dead zone */
         .carrier_clk     = 0,       /* Not AM mode */
