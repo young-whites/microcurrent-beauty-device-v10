@@ -585,6 +585,10 @@ void nnc6521_wavegen_config(uint8_t chip_id,
     addr = WG_REG_ADDR(wf->CHANNEL, WG_DRV_CTRL_REG0_OFFSET);
     nnc6521_write_wave_reg(chip_id, addr, wf->WG_DRV_CTRL_REG0.value);
 
+    /* Restart AWG to ensure new waveform data takes effect */
+    nnc6521_awg_enable_disable(chip_id, wf->CHANNEL, 0);
+    nnc6521_awg_enable_disable(chip_id, wf->CHANNEL, 1);
+
     /* DEBUG: readback CTRL_REG0 and waveform data[0..3] */
     {
         uint8_t ctrl_rb = nnc6521_read_wave_reg(chip_id, addr);
