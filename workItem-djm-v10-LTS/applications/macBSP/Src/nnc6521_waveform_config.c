@@ -384,6 +384,10 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
 
         case GEN_METHOD_CUSTOM_SPI:
             if (cfg->waveform_data != NULL) {
+                rt_kprintf("[WF] id=%d pts=%d current=%u wave[0..3]=%.2f,%.2f,%.2f,%.2f\n",
+                    waveform_id, cfg->point_num, actual_current,
+                    cfg->waveform_data[0], cfg->waveform_data[1],
+                    cfg->waveform_data[2], cfg->waveform_data[3]);
                 /* Low-freq waveforms need reduced PCLK to fit 16-bit register */
                 if (waveform_id == 8) {
                     set_pclk_divider(chip_id, PCLK_DIV_16);
