@@ -539,7 +539,7 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.waveform_id = waveform_id;
 
-    /* All waveforms share 0~80mA range, percent mapping is identical.
+    /* All waveforms share 0~8mA range, percent mapping is identical.
      * No recalculation needed on waveform switch. */
 
     /* If treatment is running, apply new waveform immediately */
