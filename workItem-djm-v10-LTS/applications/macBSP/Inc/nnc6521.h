@@ -66,6 +66,7 @@ extern float circulation_sculpt_am_64[64];
 /* Edge-softened waveform arrays (reduced stinging sensation) */
 extern float softened_square_waveform_64[64];
 extern float softened_square_50pct_64[64];
+extern float square_20pct_asymmetric_128[128];
 extern float softened_burst_pulse_64[64];
 extern float softened_triangle_waveform_64[64];
 

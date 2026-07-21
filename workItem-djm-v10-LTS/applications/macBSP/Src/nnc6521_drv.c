@@ -179,11 +179,15 @@ void nnc6521_customized_waveform(uint8_t chip_id,
     wf.CHANNEL = u8_Channel;
 
     if (u8_Asymmetric_Symmetric == 0) {
+        /* Asymmetric mode: 128-point array, point_num=64 per half */
         wf.WG_DRV_POINT_CONFIG.value = u8_PointNum;
-        wf.WG_DRV_CTRL_REG0.bits.symmetric_wave = 0;
+        wf.WG_DRV_CTRL_REG0.bits.symmetric_wave = 1;  /* bit7=1: asymmetric */
+        wf.WG_DRV_CTRL_REG0.bits.preload_mode = 1;    /* bit6=1: continuous 128pts */
     } else {
+        /* Symmetric mode: 64-point array mirrored */
         wf.WG_DRV_POINT_CONFIG.value = u8_PointNum / 2;
-        wf.WG_DRV_CTRL_REG0.bits.symmetric_wave = 1;
+        wf.WG_DRV_CTRL_REG0.bits.symmetric_wave = 0;  /* bit7=0: symmetric */
+        wf.WG_DRV_CTRL_REG0.bits.preload_mode = 0;    /* bit6=0: preload */
     }
 
     wf.WG_DRV_CONFIG_REG0.bits.rest_enable = 1;
@@ -528,19 +532,26 @@ void nnc6521_wavegen_config(uint8_t chip_id,
         addr = WG_REG_ADDR(wf->CHANNEL, WG_DRV_POINT_CONFIG_OFFSET);
         wf->WG_DRV_POINT_CONFIG.value = nnc6521_read_wave_reg(chip_id, addr);
 
+        /* Determine total points to write (asymmetric=2x, symmetric=1x) */
+        if (wf->WG_DRV_CTRL_REG0.bits.preload_mode == 0) {
+            driver_point = wf->WG_DRV_POINT_CONFIG.value;
+        } else {
+            driver_point = wf->WG_DRV_POINT_CONFIG.value * 2;
+        }
+
         /* Calibrate waveform current array */
-        uint16_t calibrated_CurrentArray_16bits[wf->WG_DRV_POINT_CONFIG.value];
-        uint8_t calibrated_CurrentArray_8bits[wf->WG_DRV_POINT_CONFIG.value];
+        uint16_t calibrated_CurrentArray_16bits[driver_point];
+        uint8_t calibrated_CurrentArray_8bits[driver_point];
         uint8_t scale_up = 0;
         uint16_t max_amplitude = 0;
 
         max_amplitude = Current_Output(chip_id, max_current, wf->CHANNEL);
         generate_scaled_wave(calibrated_CurrentArray_16bits,
-                             wf->WG_DRV_POINT_CONFIG.value,
+                             driver_point,
                              normalized_waveform_array, max_amplitude);
         convert_16bit_to_8bit(calibrated_CurrentArray_8bits, &scale_up,
                              calibrated_CurrentArray_16bits,
-                             wf->WG_DRV_POINT_CONFIG.value);
+                             driver_point);
 
         /* Update drive current register 2 with scale factor */
         addr = WG_REG_ADDR(wf->CHANNEL, WG_DRIVE_REG_CTRL2_OFFSET);
@@ -548,12 +559,6 @@ void nnc6521_wavegen_config(uint8_t chip_id,
         nnc6521_write_wave_reg(chip_id, addr, wf->WG_DRIVE_REG_CTRL2.value);
 
         if (wf->WG_DRV_POINT_CONFIG.value > 0) {
-            if (wf->WG_DRV_CTRL_REG0.bits.preload_mode == 0) {
-                driver_point = wf->WG_DRV_POINT_CONFIG.value;
-            } else {
-                driver_point = wf->WG_DRV_POINT_CONFIG.value * 2;
-            }
-
             if (normalized_waveform_array != NULL) {
                 for (i = 0; i < driver_point; i++) {
                     nnc6521_write_wave_reg(chip_id,

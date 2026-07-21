@@ -41,7 +41,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .rest_time       = 0,       /* No dead zone */
         .carrier_clk     = 0,       /* Not AM mode */
         .am_interval     = 0,       /* Not AM mode */
-        .waveform_data   = softened_square_waveform_64  /* Edge-softened square */
+        .waveform_data   = square_20pct_asymmetric_128  /* 128pt: 64 pos + 64 neg */
     },
 
     /* ---- Waveform 2: Burst Train ---- */
