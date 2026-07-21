@@ -18,7 +18,7 @@ extern "C" {
 
 /* Preset waveform count ------------------------------------------------------*/
 #define WAVEFORM_COUNT          9       /**< Total preset waveforms (ID 1~9) */
-#define WAVEFORM_LEVEL_COUNT    11      /**< 0~10 共 11 个档位 */
+#define WAVEFORM_LEVEL_COUNT    81      /**< 0~80 共 81 个档位, step 100μA, range 0~8000μA */
 
 /* Default current percentage -------------------------------------------------*/
 #define WAVEFORM_DEFAULT_PCT    50      /**< Default current percentage (0~100) */
@@ -73,7 +73,7 @@ typedef struct {
 /* Global waveform config array -----------------------------------------------*/
 extern const waveform_config_t g_waveform_configs[WAVEFORM_COUNT];
 
-/* 电流档位映射表：每行对应一种波形（ID 1~9），每列对应档位 0~10，单位 mA */
+/* 电流档位映射表：每行对应一种波形（ID 1~9），每列对应档位 0~80，单位 μA */
 extern const uint32_t g_current_level_map[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT];
 
 /* ============================================================================
@@ -103,12 +103,12 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
 /**
  * @brief Calculate actual output current from waveform ID and percentage (档位查表)
  *
- * percent 0~100 内部映射为档位 0~10，然后查 g_current_level_map 表获取电流值。
+ * percent 0~100 内部映射为档位 0~80，然后查 g_current_level_map 表获取电流值。
  *
  * @param[in] waveform_id  Waveform ID (1~9)
  * @param[in] percent      Current percentage (0~100)
  *
- * @return Actual current value (mA), returns 0 for invalid ID
+ * @return Actual current value (μA), returns 0 for invalid ID
  *
  * @see waveform_apply
  */

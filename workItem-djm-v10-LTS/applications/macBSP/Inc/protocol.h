@@ -117,7 +117,7 @@ typedef enum {
  *  Handle Parameter Structure (per-handle state)
  * ===========================================================================*/
 typedef struct {
-    uint16_t current_ma;        /* Current output in mA (protocol value) */
+    uint16_t current_ma;        /* Current output in μA (protocol value, step 100μA) */
     uint8_t  current_percent;   /* Internal: percentage for NNC6521 driver */
     uint8_t  temperature;       /* Target temperature (0~41C) */
     uint8_t  pump_speed;        /* Pump speed (0~100%) */

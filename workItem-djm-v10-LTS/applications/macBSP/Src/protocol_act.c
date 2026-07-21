@@ -234,7 +234,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 
 /**
  * @brief  Handle 0x02: Current control.
- *         para[0] = current level (0~10, lookup table)
+ *         para[0] = current level (0~80, lookup table, step 100μA)
  *         para[1] = target handle ID (0x0A/0x0B/0x0C)
  */
 static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
@@ -244,10 +244,10 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    uint8_t level = params[0];       /* 档位 0~10 */
+    uint8_t level = params[0];       /* 档位 0~80 */
     uint8_t handle_id = params[1];
 
-    if (level > 10) {
+    if (level > 80) {
         protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
         return;
     }
@@ -258,19 +258,21 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* 查表获取实际电流 */
+    /* 查表获取实际电流 (μA) */
     uint8_t wf_id = g_dev_state.waveform_id;
-    uint32_t actual_ma = g_current_level_map[wf_id - 1][level];
+    uint32_t actual_ua = g_current_level_map[wf_id - 1][level];
 
     /* 计算 percent（0~100）给 NNC6521 驱动 */
     const waveform_config_t *cfg = waveform_get_config(wf_id);
     uint8_t percent = 0;
     if (cfg && cfg->max_current > cfg->min_current) {
+        /* max_current/min_current in mA, actual_ua in μA → convert to mA for percent calc */
+        uint32_t actual_ma = actual_ua / 1000;
         percent = (uint8_t)((actual_ma - cfg->min_current) * 100 / (cfg->max_current - cfg->min_current));
     }
 
     /* 存储 */
-    g_dev_state.handle[hi].current_ma = actual_ma;
+    g_dev_state.handle[hi].current_ma = actual_ua;
     g_dev_state.handle[hi].current_percent = percent;
 
     /* 如果当前手柄正在运行，更新输出 */
@@ -285,7 +287,7 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         }
     }
 
-    rt_kprintf("[PROTO] Current set: handle %c = level %u -> %u mA (%u%%)\n", 'A' + hi, level, actual_ma, percent);
+    rt_kprintf("[PROTO] Current set: handle %c = level %u -> %u uA (%u%%)\n", 'A' + hi, level, actual_ua, percent);
 
     /* ACK 回复：返回 [档位, handle_id] */
     uint8_t ack_params[2] = { level, handle_id };
