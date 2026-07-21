@@ -584,6 +584,22 @@ void nnc6521_wavegen_config(uint8_t chip_id,
     /* Finally enable waveform generator */
     addr = WG_REG_ADDR(wf->CHANNEL, WG_DRV_CTRL_REG0_OFFSET);
     nnc6521_write_wave_reg(chip_id, addr, wf->WG_DRV_CTRL_REG0.value);
+
+    /* DEBUG: readback CTRL_REG0 and waveform data[0..3] */
+    {
+        uint8_t ctrl_rb = nnc6521_read_wave_reg(chip_id, addr);
+        /* Set read address to point 0, then read data */
+        nnc6521_write_wave_reg(chip_id,
+            WG_REG_ADDR(wf->CHANNEL, WG_DRV_IN_WAVE_ADDR_OFFSET), 0);
+        uint8_t d0 = nnc6521_read_wave_reg(chip_id,
+            WG_REG_ADDR(wf->CHANNEL, WG_DRV_IN_WAVE_OFFSET));
+        nnc6521_write_wave_reg(chip_id,
+            WG_REG_ADDR(wf->CHANNEL, WG_DRV_IN_WAVE_ADDR_OFFSET), 1);
+        uint8_t d1 = nnc6521_read_wave_reg(chip_id,
+            WG_REG_ADDR(wf->CHANNEL, WG_DRV_IN_WAVE_OFFSET));
+        rt_kprintf("[NNC] CTRL=0x%02X pts=%d wav[0]=%d wav[1]=%d\n",
+            ctrl_rb, wf->WG_DRV_POINT_CONFIG.value, d0, d1);
+    }
 }
 
 /* ============================================================================
