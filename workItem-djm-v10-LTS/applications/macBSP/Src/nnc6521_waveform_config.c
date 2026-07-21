@@ -81,7 +81,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .rest_time       = 0,
         .carrier_clk     = 0,
         .am_interval     = 0,
-        .waveform_data   = softened_square_waveform_64  /* Edge-softened square */
+        .waveform_data   = softened_square_50pct_64  /* 50% duty cycle square */
     },
 
     /* ---- Waveform 4: Deep Sculpt ---- */
