@@ -16,7 +16,7 @@
 /* ============================================================================
  *  Global waveform config array
  *
- *  AWG_CLK = 32.768 kHz (internal oscillator)
+ *  AWG clock: ~32.768 kHz (independent of SPI PCLK=2MHz)
  *  For PCLK_DIV_1: AWG_CLK = 32768 Hz
  *  For PCLK_DIV_16: AWG_CLK = 2048 Hz (used by WF6, WF8)
  *  half_wave_clk = AWG_CLK / (2 * frequency)
@@ -36,7 +36,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_SQUARE,     /* Square wave (edge-softened) */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,      /* Custom SPI softened waveform */
         .point_num       = 64,       /* 64 points */
-        .half_wave_clk   = 200,     /* TEST: small value */
+        .half_wave_clk   = 328,     /* 32768 / (2*50) = 328 */
         .silent_time     = 300,     /* 150 * 2 = 300 */
         .rest_time       = 0,       /* No dead zone */
         .carrier_clk     = 0,       /* Not AM mode */
