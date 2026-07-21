@@ -61,7 +61,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .rest_time       = 0,
         .carrier_clk     = 0,
         .am_interval     = 0,
-        .waveform_data   = softened_burst_pulse_64  /* Edge-softened gaussian burst */
+        .waveform_data   = square_30pct_asymmetric_128  /* 30% duty cycle, 128pt */
     },
 
     /* ---- Waveform 3: Gentle Smooth ---- */
@@ -81,7 +81,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .rest_time       = 0,
         .carrier_clk     = 0,
         .am_interval     = 0,
-        .waveform_data   = softened_square_50pct_64  /* 50% duty cycle square */
+        .waveform_data   = square_40pct_asymmetric_128  /* 40% duty cycle, 128pt */
     },
 
     /* ---- Waveform 4: Deep Sculpt ---- */
