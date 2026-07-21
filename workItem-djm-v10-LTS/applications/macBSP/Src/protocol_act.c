@@ -234,7 +234,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 
 /**
  * @brief  Handle 0x02: Current control.
- *         para[0] = current value (mA, 0~100)
+ *         para[0] = current level (0~10, lookup table)
  *         para[1] = target handle ID (0x0A/0x0B/0x0C)
  */
 static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
@@ -244,8 +244,13 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    uint16_t current_ma = params[0];  /* mA value from upper machine (single byte, 0~100) */
+    uint8_t level = params[0];       /* 档位 0~10 */
     uint8_t handle_id = params[1];
+
+    if (level > 10) {
+        protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
+        return;
+    }
 
     int hi = protocol_handle_index(handle_id);
     if (hi < 0) {
@@ -253,26 +258,22 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Validate against current waveform's range */
-    const waveform_config_t *cfg = waveform_get_config(g_dev_state.waveform_id);
-    if (cfg == NULL) {
-        protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
-        return;
+    /* 查表获取实际电流 */
+    uint8_t wf_id = g_dev_state.waveform_id;
+    uint32_t actual_ma = g_current_level_map[wf_id - 1][level];
+
+    /* 计算 percent（0~100）给 NNC6521 驱动 */
+    const waveform_config_t *cfg = waveform_get_config(wf_id);
+    uint8_t percent = 0;
+    if (cfg && cfg->max_current > cfg->min_current) {
+        percent = (uint8_t)((actual_ma - cfg->min_current) * 100 / (cfg->max_current - cfg->min_current));
     }
 
-    /* Clamp to waveform range */
-    if (current_ma < cfg->min_current) current_ma = cfg->min_current;
-    if (current_ma > cfg->max_current) current_ma = cfg->max_current;
-
-    /* Convert mA to percentage for NNC6521 driver */
-    uint32_t range = cfg->max_current - cfg->min_current;
-    uint8_t percent = (range > 0) ? ((current_ma - cfg->min_current) * 100 / range) : 0;
-
-    /* Store both values */
-    g_dev_state.handle[hi].current_ma = current_ma;
+    /* 存储 */
+    g_dev_state.handle[hi].current_ma = actual_ma;
     g_dev_state.handle[hi].current_percent = percent;
 
-    /* If this is the active handle and treatment is running, update output */
+    /* 如果当前手柄正在运行，更新输出 */
     if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
         if (percent == 0) {
             uint8_t chip_id = handle_to_chip(hi);
@@ -284,9 +285,10 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         }
     }
 
-    rt_kprintf("[PROTO] Current set: handle %c = %u mA (%u%%)\n", 'A' + hi, current_ma, percent);
+    rt_kprintf("[PROTO] Current set: handle %c = level %u -> %u mA (%u%%)\n", 'A' + hi, level, actual_ma, percent);
 
-    uint8_t ack_params[2] = { (uint8_t)current_ma, handle_id };
+    /* ACK 回复：返回 [档位, handle_id] */
+    uint8_t ack_params[2] = { level, handle_id };
     protocol_send_ack(FUNC_CURRENT_CTRL, ack_params, 2);
 }
 
