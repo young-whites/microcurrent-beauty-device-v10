@@ -31,12 +31,12 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .min_current     = 0,
         .max_current     = 8,        /* Maximum output current 8 mA */
         .frequency       = 50,       /* Waveform frequency 50 Hz */
-        .pulse_width_us  = 300,      /* Pulse width 300 us */
+        .pulse_width_us  = 150,      /* Pulse width 150 us */
         .waveform_type   = WAVEFORM_TYPE_SQUARE,     /* Square wave (edge-softened) */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,      /* Custom SPI softened waveform */
         .point_num       = 64,       /* 64 points */
         .half_wave_clk   = 20000,   /* 2000000 / (2*50) = 20000 */
-        .silent_time     = 600,     /* 300 * 2 = 600 */
+        .silent_time     = 300,     /* 150 * 2 = 300 */
         .rest_time       = 0,       /* No dead zone */
         .carrier_clk     = 0,       /* Not AM mode */
         .am_interval     = 0,       /* Not AM mode */
@@ -71,12 +71,12 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .min_current     = 0,
         .max_current     = 8,        /* Maximum output current 8 mA */
         .frequency       = 35,       /* Lower frequency 35 Hz */
-        .pulse_width_us  = 300,
+        .pulse_width_us  = 150,
         .waveform_type   = WAVEFORM_TYPE_SQUARE,     /* Square wave (edge-softened) */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,      /* Custom SPI softened waveform */
         .point_num       = 64,
         .half_wave_clk   = 28571,   /* 2000000 / (2*35) = 28571 */
-        .silent_time     = 600,     /* 300 * 2 = 600 */
+        .silent_time     = 300,     /* 150 * 2 = 300 */
         .rest_time       = 0,
         .carrier_clk     = 0,
         .am_interval     = 0,
@@ -91,7 +91,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .min_current     = 0,
         .max_current     = 8,
         .frequency       = 50,       /* Envelope frequency 50 Hz */
-        .pulse_width_us  = 250,      /* 4 kHz carrier half-cycle 250 us */
+        .pulse_width_us  = 150,      /* 4 kHz carrier half-cycle 150 us */
         .waveform_type   = WAVEFORM_TYPE_BALANCED_SQUARE, /* Balanced square wave */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,
         .point_num       = 128,      /* 128 points high precision */

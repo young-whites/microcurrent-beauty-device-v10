@@ -75,10 +75,10 @@ extern "C" {
 /* ============================================================================
  *  Waveform Definitions
  * ===========================================================================*/
-#define WAVEFORM_POWER_SMOOTH       1   /* 0~8mA, 50Hz, 300us, symm. square */
+#define WAVEFORM_POWER_SMOOTH       1   /* 0~8mA, 50Hz, 150us, symm. square */
 #define WAVEFORM_BURST_TRAIN        2   /* 0~8mA, 50Hz burst 10Hz, 300us */
-#define WAVEFORM_GENTLE_SMOOTH      3   /* 0~8mA, 35Hz, 300us, symm. square */
-#define WAVEFORM_DEEP_SCULPT        4   /* 0~8mA, 40~50Hz, 4kHz balanced sq */
+#define WAVEFORM_GENTLE_SMOOTH      3   /* 0~8mA, 35Hz, 150us, symm. square */
+#define WAVEFORM_DEEP_SCULPT        4   /* 0~8mA, 40~50Hz, 150us, 4kHz balanced sq */
 #define WAVEFORM_SOFT_SCULPT        5   /* 0~8mA, 30~40Hz, 2~4kHz sine */
 #define WAVEFORM_CIRCUL_SCULPT      6   /* 0~8mA, 2~10Hz, 4kHz bal. sine */
 #define WAVEFORM_SMOOTH_FIRM        7   /* 0~8mA, 80~100Hz, 400us, tri */
