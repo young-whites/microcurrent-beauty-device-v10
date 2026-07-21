@@ -213,6 +213,41 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
 };
 
 /* ============================================================================
+ *  Current level lookup table
+ *  9 waveforms × 11 levels (0~10), unit: mA
+ *  Level 0 = 0 mA (off), Level 10 = max_current (8 mA)
+ * ===========================================================================*/
+
+const uint32_t g_current_level_map[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT] = {
+    /* Waveform 1: Power Smooth — 线性递增 */
+    { 0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 8 },
+
+    /* Waveform 2: Burst Train — 低档陡、高档缓 */
+    { 0, 2, 3, 4, 5, 5, 6, 6, 7, 7, 8 },
+
+    /* Waveform 3: Gentle Smooth — 对数（低档柔和） */
+    { 0, 1, 1, 2, 2, 3, 3, 4, 5, 7, 8 },
+
+    /* Waveform 4: Deep Sculpt — 前陡后平 */
+    { 0, 2, 4, 5, 6, 6, 7, 7, 7, 8, 8 },
+
+    /* Waveform 5: Soft Sculpt — S 曲线（中间档变化大） */
+    { 0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 8 },
+
+    /* Waveform 6: Circulation Sculpt — 缓起快升 */
+    { 0, 0, 1, 1, 2, 3, 4, 5, 6, 7, 8 },
+
+    /* Waveform 7: Smooth & Firm — 均匀递增 */
+    { 0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 8 },
+
+    /* Waveform 8: Lymphatic Drainage — 极低档起步、缓慢递增 */
+    { 0, 0, 1, 1, 2, 2, 3, 3, 4, 6, 8 },
+
+    /* Waveform 9: Soothing Ending — 反 S 曲线 */
+    { 0, 1, 3, 4, 5, 5, 5, 6, 7, 8, 8 }
+};
+
+/* ============================================================================
  *  Internal helper: PCLK divider setup
  * ===========================================================================*/
 
@@ -260,9 +295,9 @@ static uint8_t get_preloaded_type(uint8_t waveform_type)
  * ===========================================================================*/
 
 /**
- * @brief Calculate actual output current from waveform ID and percentage
+ * @brief Calculate actual output current from waveform ID and percentage (档位查表)
  *
- * Formula: actual_current = min_current + (max_current - min_current) * percent / 100
+ * percent 0~100 映射为档位 0~10，查 g_current_level_map 表获取电流值。
  *
  * @param[in] waveform_id Waveform ID (1~WAVEFORM_COUNT)
  * @param[in] percent     Current percentage (0~100)
@@ -275,9 +310,11 @@ uint32_t waveform_calc_current(uint8_t waveform_id, uint8_t percent)
     if (waveform_id < 1 || waveform_id > WAVEFORM_COUNT) return 0;
     if (percent > 100) percent = 100;
 
-    const waveform_config_t *cfg = &g_waveform_configs[waveform_id - 1];
-    uint32_t range = cfg->max_current - cfg->min_current;
-    return cfg->min_current + (range * percent) / 100;
+    /* percent 0~100 → level 0~10 */
+    uint8_t level = (percent * WAVEFORM_LEVEL_COUNT + 5) / 101;
+    if (level > 10) level = 10;
+
+    return g_current_level_map[waveform_id - 1][level];
 }
 
 /* ============================================================================
