@@ -234,7 +234,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 
 /**
  * @brief  Handle 0x02: Current control.
- *         para[0] = current level (0~80, lookup table, step 100μA)
+ *         para[0] = gear level (0~10, lookup table, unit μA)
  *         para[1] = target handle ID (0x0A/0x0B/0x0C)
  */
 static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
@@ -244,10 +244,10 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    uint8_t level = params[0];       /* 档位 0~80 */
+    uint8_t level = params[0];       /* gear level 0~10 */
     uint8_t handle_id = params[1];
 
-    if (level > 80) {
+    if (level > 10) {
         protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
         return;
     }
