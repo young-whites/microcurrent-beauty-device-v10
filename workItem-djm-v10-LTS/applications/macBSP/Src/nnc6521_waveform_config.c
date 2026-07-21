@@ -16,9 +16,10 @@
 /* ============================================================================
  *  Global waveform config array
  *
- *  PCLK = 2 MHz
- *  half_wave_clk = PCLK / (2 * frequency)
- *  silent_time = pulse_width_us * 2  (since PCLK = 2 MHz, 1 us = 2 clocks)
+ *  AWG_CLK = 32.768 kHz (internal oscillator)
+ *  For PCLK_DIV_1: AWG_CLK = 32768 Hz
+ *  For PCLK_DIV_16: AWG_CLK = 2048 Hz (used by WF6, WF8)
+ *  half_wave_clk = AWG_CLK / (2 * frequency)
  * ===========================================================================*/
 
 const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
@@ -35,7 +36,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_SQUARE,     /* Square wave (edge-softened) */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,      /* Custom SPI softened waveform */
         .point_num       = 64,       /* 64 points */
-        .half_wave_clk   = 500,     /* TEST D: small value validation */
+        .half_wave_clk   = 328,     /* 32768 / (2*50) = 328 */
         .silent_time     = 300,     /* 150 * 2 = 300 */
         .rest_time       = 0,       /* No dead zone */
         .carrier_clk     = 0,       /* Not AM mode */
@@ -55,7 +56,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_BURST,       /* Burst type */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,      /* Use SPI custom waveform */
         .point_num       = 64,
-        .half_wave_clk   = 20000,   /* 2000000 / (2*50) = 20000 */
+        .half_wave_clk   = 328,     /* 32768 / (2*50) = 328 */
         .silent_time     = 600,     /* 300 * 2 = 600 */
         .rest_time       = 0,
         .carrier_clk     = 0,
@@ -75,7 +76,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_SQUARE,     /* Square wave (edge-softened) */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,      /* Custom SPI softened waveform */
         .point_num       = 64,
-        .half_wave_clk   = 28571,   /* 2000000 / (2*35) = 28571 */
+        .half_wave_clk   = 468,     /* 32768 / (2*35) = 468 */
         .silent_time     = 300,     /* 150 * 2 = 300 */
         .rest_time       = 0,
         .carrier_clk     = 0,
@@ -95,8 +96,8 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_BALANCED_SQUARE, /* Balanced square wave */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,
         .point_num       = 128,      /* 128 points high precision */
-        .half_wave_clk   = 20000,   /* 2000000 / (2*50) = 20000 */
-        .silent_time     = 250,     /* 2000000 / (2*4000) = 250 (carrier period) */
+        .half_wave_clk   = 328,     /* 32768 / (2*50) = 328 */
+        .silent_time     = 250,     /* carrier period */
         .rest_time       = 0,
         .carrier_clk     = 0,
         .am_interval     = 0,
@@ -115,7 +116,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_SINE,          /* Sine wave */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,
         .point_num       = 128,      /* 128 points high precision sine */
-        .half_wave_clk   = 25000,   /* 2000000 / (2*40) = 25000 */
+        .half_wave_clk   = 410,     /* 32768 / (2*40) = 410 */
         .silent_time     = 0,       /* No silent period */
         .rest_time       = 0,
         .carrier_clk     = 0,
@@ -137,7 +138,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_BALANCED_SINE,
         .gen_method      = GEN_METHOD_CUSTOM_SPI,       /* Changed from AMPLITUDE_MOD */
         .point_num       = 64,
-        .half_wave_clk   = 12500,   /* PCLK/8: 250000 / (2*10) = 12500 */
+        .half_wave_clk   = 102,     /* 2048 / (2*10) = 102 (PCLK/16) */
         .silent_time     = 0,
         .rest_time       = 0,
         .carrier_clk     = 0,        /* Not used in SPI mode */
@@ -157,7 +158,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_TRIANGLE,       /* Triangle wave (edge-softened) */
         .gen_method      = GEN_METHOD_CUSTOM_SPI,          /* Custom SPI softened waveform */
         .point_num       = 64,
-        .half_wave_clk   = 10000,   /* 2000000 / (2*100) = 10000 */
+        .half_wave_clk   = 164,     /* 32768 / (2*100) = 164 */
         .silent_time     = 800,     /* 400 * 2 = 800 */
         .rest_time       = 0,
         .carrier_clk     = 0,
@@ -166,9 +167,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
     },
 
     /* ---- Waveform 8: Lymphatic Drainage ---- */
-    /* NOTE: Requires PCLK_DIV_16 (PCLK=125kHz). With PCLK/16:
-     *   half_wave_clk = 125000 / (2*5) = 12500 (fits uint16_t)
-     *   silent_time   = 125000 * 450e-6 = 56 */
+    /* NOTE: Uses PCLK_DIV_16 (AWG_CLK=2048Hz) */
     {
         .id              = 8,
         .name            = "Lymphatic Drainage",
@@ -180,8 +179,8 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_SINE,
         .gen_method      = GEN_METHOD_CUSTOM_SPI,
         .point_num       = 64,
-        .half_wave_clk   = 12500,   /* PCLK/16: 125000/(2*5) = 12500 */
-        .silent_time     = 56,      /* PCLK/16: 125000*450e-6 = 56 */
+        .half_wave_clk   = 205,     /* 2048 / (2*5) = 205 (PCLK/16) */
+        .silent_time     = 56,      /* PCLK/16 adjusted */
         .rest_time       = 0,
         .carrier_clk     = 0,
         .am_interval     = 0,
@@ -189,9 +188,6 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
     },
 
     /* ---- Waveform 9: Soothing Ending ---- */
-    /* NOTE: Requires PCLK_DIV_8 (PCLK=250kHz). With PCLK/8:
-     *   half_wave_clk = 250000 / (2*10) = 12500 (fits uint16_t)
-     *   Uses custom SPI sine (not preloaded) per spec */
     {
         .id              = 9,
         .name            = "Soothing Ending",
@@ -203,7 +199,7 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
         .waveform_type   = WAVEFORM_TYPE_SINE,
         .gen_method      = GEN_METHOD_CUSTOM_SPI,         /* Custom SPI sine */
         .point_num       = 64,
-        .half_wave_clk   = 17,      /* ~1kHz: 2124800/(2*17*64) = 975Hz */
+        .half_wave_clk   = 16,      /* 32768 / (2*1000) = 16 */
         .silent_time     = 0,       /* Continuous sine wave, no silent period */
         .rest_time       = 0,
         .carrier_clk     = 0,
