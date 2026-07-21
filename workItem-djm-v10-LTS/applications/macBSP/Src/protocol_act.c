@@ -266,9 +266,12 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
     const waveform_config_t *cfg = waveform_get_config(wf_id);
     uint8_t percent = 0;
     if (cfg && cfg->max_current > cfg->min_current) {
-        /* max_current/min_current in mA, actual_ua in μA → convert to mA for percent calc */
-        uint32_t actual_ma = actual_ua / 1000;
-        percent = (uint8_t)((actual_ma - cfg->min_current) * 100 / (cfg->max_current - cfg->min_current));
+        /* max_current/min_current in mA → convert to μA for consistent calc */
+        uint32_t max_ua = cfg->max_current * 1000;
+        uint32_t min_ua = cfg->min_current * 1000;
+        if (max_ua > min_ua) {
+            percent = (uint8_t)((actual_ua - min_ua) * 100 / (max_ua - min_ua));
+        }
     }
 
     /* 存储 */
