@@ -218,33 +218,48 @@ const waveform_config_t g_waveform_configs[WAVEFORM_COUNT] =
  *    WF7: quadratic, WF8: cubic, WF9: parabolic
  * ===========================================================================*/
 
-const uint32_t g_current_level_map[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT] = {
+/* A handle current level map (high current, face use) */
+const uint32_t g_current_level_map_a[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT] = {
     /* Waveform 1: Power Smooth — Linear */
-    { 0, 800, 1000, 1200, 2400, 3000, 3500, 4000, 4500, 5000, 5500 },
-
-    /* Waveform 2: Burst Train — Sqrt (front-steep, back-gradual) */
-    { 0, 800, 1000, 1200, 1300, 1500, 1700, 2000, 2200, 2500, 3000 },
-
-    /* Waveform 3: Gentle Smooth — Exponential (front-gradual, back-steep) */
-    { 0, 800, 1000, 1200, 1300, 1500, 1700, 2000, 2200, 2500, 3000 },
-
-    /* Waveform 4: Deep Sculpt — S-curve (slow start, fast middle, slow end) */
-    { 4000, 8000, 12000, 16000, 20000, 24000, 28000, 32000, 36000, 40000 },
-
-    /* Waveform 5: Soft Sculpt — Reverse S (fast start, slow middle, fast end) */
-    {500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000 },
-
+    { 0, 800, 1000, 1200, 2400, 3000, 3500, 4000, 4500, 5000, 25000 },
+    /* Waveform 2: Burst Train — Sqrt */
+    { 0, 800, 1000, 1200, 1300, 1500, 1700, 2000, 2200, 2500, 25000 },
+    /* Waveform 3: Gentle Smooth — Exponential */
+    { 0, 800, 1000, 1200, 1300, 1500, 1700, 2000, 2200, 2500, 20000 },
+    /* Waveform 4: Deep Sculpt — S-curve */
+    { 0, 4000, 8000, 12000, 16000, 20000, 24000, 28000, 32000, 36000, 40000 },
+    /* Waveform 5: Soft Sculpt — Reverse S */
+    { 0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000 },
     /* Waveform 6: Circulation Sculpt — Front-steep logarithmic */
-    { 0, 3326, 4662, 5578, 6276, 6840, 7308, 7620, 7830, 7940, 20000 },
-
-    /* Waveform 7: Smooth & Firm — Quadratic (front-gradual, back-steep) */
+    { 0, 2000, 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 28000 },
+    /* Waveform 7: Smooth & Firm — Quadratic */
     { 0, 600, 1200, 1800, 2400, 3000, 3600, 4200, 4800, 5400, 6000 },
-
-    /* Waveform 8: Lymphatic Drainage — Cubic (extremely gentle start, steep end) */
+    /* Waveform 8: Lymphatic Drainage — Cubic */
     { 0, 1500, 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 15000 },
+    /* Waveform 9: Soothing Ending — Parabolic */
+    { 0, 2000, 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 25000 }
+};
 
-    /* Waveform 9: Soothing Ending — Parabolic (mid-peak, symmetric taper) */
-    { 0, 2000, 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000 }
+/* B/C handle current level map (half of A handle) */
+const uint32_t g_current_level_map_bc[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT] = {
+    /* Waveform 1 */
+    { 0, 400, 500, 600, 1200, 1500, 1750, 2000, 2250, 2500, 12500 },
+    /* Waveform 2 */
+    { 0, 400, 500, 600, 650, 750, 850, 1000, 1100, 1250, 12500 },
+    /* Waveform 3 */
+    { 0, 400, 500, 600, 650, 750, 850, 1000, 1100, 1250, 10000 },
+    /* Waveform 4 */
+    { 0, 2000, 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000 },
+    /* Waveform 5 */
+    { 0, 250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500 },
+    /* Waveform 6 */
+    { 0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 14000 },
+    /* Waveform 7 */
+    { 0, 300, 600, 900, 1200, 1500, 1800, 2100, 2400, 2700, 3000 },
+    /* Waveform 8 */
+    { 0, 750, 1500, 2250, 3000, 3750, 4500, 5250, 6000, 6750, 7500 },
+    /* Waveform 9 */
+    { 0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 12500 }
 };
 
 /* ============================================================================
@@ -314,7 +329,7 @@ uint32_t waveform_calc_current(uint8_t waveform_id, uint8_t percent)
     uint8_t level = (percent * (WAVEFORM_LEVEL_COUNT - 1) + 50) / 100;
     if (level >= WAVEFORM_LEVEL_COUNT) level = WAVEFORM_LEVEL_COUNT - 1;
 
-    return g_current_level_map[waveform_id - 1][level];
+    return g_current_level_map_a[waveform_id - 1][level];
 }
 
 /* ============================================================================

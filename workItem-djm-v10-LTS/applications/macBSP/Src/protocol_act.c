@@ -259,9 +259,11 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Lookup actual current from level table (μA) */
+    /* Lookup actual current from level table (μA), A handle uses dedicated table */
     uint8_t wf_id = g_dev_state.waveform_id;
-    uint32_t actual_ua = g_current_level_map[wf_id - 1][level];
+    const uint32_t *level_map = (hi == 0) ? g_current_level_map_a[wf_id - 1]
+                                           : g_current_level_map_bc[wf_id - 1];
+    uint32_t actual_ua = level_map[level];
 
     /* Store new current */
     g_dev_state.handle[hi].current_ma = actual_ua;

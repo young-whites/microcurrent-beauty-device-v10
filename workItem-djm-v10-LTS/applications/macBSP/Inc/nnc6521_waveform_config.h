@@ -73,8 +73,9 @@ typedef struct {
 /* Global waveform config array -----------------------------------------------*/
 extern const waveform_config_t g_waveform_configs[WAVEFORM_COUNT];
 
-/* 电流档位映射表：每行对应一种波形（ID 1~9），每列对应档位 0~10，单位 μA */
-extern const uint32_t g_current_level_map[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT];
+/* Current level lookup tables: per-row = waveform ID 1~9, per-column = level 0~10, unit μA */
+extern const uint32_t g_current_level_map_a[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT];
+extern const uint32_t g_current_level_map_bc[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT];
 
 /* ============================================================================
  *  Public API
