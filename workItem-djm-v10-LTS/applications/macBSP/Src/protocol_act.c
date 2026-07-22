@@ -21,6 +21,9 @@
 #include "ntc_sensor.h"
 #include <string.h>
 
+/* Ramp abort flag: set by any new current/waveform command to interrupt ongoing ramp */
+static volatile uint8_t s_ramp_abort = 0;
+
 /* ============================================================================
  *  Hardware Helper: get NNC6521 chip ID from handle index
  * ===========================================================================*/
@@ -234,6 +237,59 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 }
 
 /**
+ * @brief  Smoothly ramp current from start_percent to target_percent.
+ *         Uses 2% steps with 15ms inter-step delay.
+ *         Can be interrupted by setting s_ramp_abort flag.
+ *
+ * @param  chip_id        NNC6521 chip ID
+ * @param  channel        Waveform channel
+ * @param  waveform_id    Waveform ID (1~9)
+ * @param  start_percent  Starting current percentage
+ * @param  target_percent Target current percentage
+ *
+ * @note   If start_percent == target_percent, returns immediately.
+ * @note   The waveform must already be configured via waveform_apply() before calling.
+ */
+static void current_ramp_to(uint8_t chip_id, uint8_t channel,
+                            uint8_t waveform_id,
+                            uint8_t start_percent, uint8_t target_percent)
+{
+    if (start_percent == target_percent) {
+        return;
+    }
+
+    s_ramp_abort = 0;
+
+    int16_t current = (int16_t)start_percent;
+    int16_t target  = (int16_t)target_percent;
+    int16_t step    = (target > current) ? 2 : -2;
+
+    while (current != target) {
+        if (s_ramp_abort) {
+            rt_kprintf("[RAMP] Aborted at %d%%\n", current);
+            return;
+        }
+
+        current += step;
+
+        /* Clamp: don't overshoot target */
+        if ((step > 0 && current > target) || (step < 0 && current < target)) {
+            current = target;
+        }
+
+        waveform_update_amplitude(chip_id, channel, waveform_id, (uint8_t)current);
+
+        if (current != target) {
+            rt_thread_mdelay(15);
+        }
+    }
+
+    /* Ensure final value is exactly the target */
+    waveform_update_amplitude(chip_id, channel, waveform_id, target_percent);
+    rt_kprintf("[RAMP] %d%% -> %d%% complete\n", start_percent, target_percent);
+}
+
+/**
  * @brief  Handle 0x02: Current control.
  *         para[0] = gear level (0~10, lookup table, unit μA)
  *         para[1] = target handle ID (0x0A/0x0B/0x0C)
@@ -275,19 +331,29 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         }
     }
 
+    /* Store old percent before updating */
+    uint8_t old_percent = g_dev_state.handle[hi].current_percent;
+
     /* 存储 */
     g_dev_state.handle[hi].current_ma = actual_ua;
     g_dev_state.handle[hi].current_percent = percent;
 
-    /* 如果当前手柄正在运行，更新输出 */
+    /* 如果当前手柄正在运行，更新输出（斜坡渐变） */
     if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
+        uint8_t chip_id = handle_to_chip(hi);
+        uint8_t channel = handle_to_channel(hi);
+
+        /* Abort any ongoing ramp before starting a new one */
+        s_ramp_abort = 1;
+        rt_thread_mdelay(20);  /* Wait for ongoing ramp to notice abort */
+
         if (percent == 0) {
-            uint8_t chip_id = handle_to_chip(hi);
-            uint8_t channel = handle_to_channel(hi);
             nnc6521_awg_enable_disable(chip_id, channel, 0);
             rt_kprintf("[PROTO] Current 0%%, AWG disabled\n");
         } else {
-            handle_apply_output(hi);
+            /* Ramp from old percent to new percent */
+            s_ramp_abort = 0;
+            current_ramp_to(chip_id, channel, wf_id, old_percent, percent);
         }
     }
 
@@ -426,7 +492,16 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
         rt_thread_mdelay(10);  /* Soft-start delay for boost stabilization */
 
         g_dev_state.is_running = 1;
-        handle_apply_output(hi);
+
+        /* Ramp from 0 to target percent on start */
+        {
+            uint8_t chip_id = handle_to_chip(hi);
+            uint8_t channel = handle_to_channel(hi);
+            uint8_t wf_id   = g_dev_state.waveform_id;
+            uint8_t target_pct = g_dev_state.handle[hi].current_percent;
+            waveform_apply(chip_id, channel, wf_id, 0);  /* Configure waveform at 0% */
+            current_ramp_to(chip_id, channel, wf_id, 0, target_pct);
+        }
 
         /* Enable pump (PB10) for handle C */
         if (hi == 2) {
@@ -550,10 +625,22 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
     /* All waveforms share 0~8mA range, percent mapping is identical.
      * No recalculation needed on waveform switch. */
 
-    /* If treatment is running, apply new waveform immediately */
+    /* If treatment is running, switch waveform with ramp */
     int hi = protocol_handle_index(g_dev_state.current_handle);
     if (hi >= 0 && g_dev_state.is_running) {
-        handle_apply_output(hi);
+        uint8_t chip_id = handle_to_chip(hi);
+        uint8_t channel = handle_to_channel(hi);
+        uint8_t target_pct = g_dev_state.handle[hi].current_percent;
+
+        /* Abort any ongoing ramp */
+        s_ramp_abort = 1;
+        rt_thread_mdelay(20);
+
+        /* Stop old waveform, configure new one at 0%, ramp to target */
+        nnc6521_awg_enable_disable(chip_id, channel, 0);
+        waveform_apply(chip_id, channel, waveform_id, 0);
+        s_ramp_abort = 0;
+        current_ramp_to(chip_id, channel, waveform_id, 0, target_pct);
     }
 
     rt_kprintf("[PROTO] Waveform selected: #%u\n", waveform_id);
