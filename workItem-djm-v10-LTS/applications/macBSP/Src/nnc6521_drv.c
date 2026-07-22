@@ -9,6 +9,7 @@
   */
 
 #include "nnc6521.h"
+#include <rtthread.h>
 
 /* ============================================================================
  *  Private function prototypes (current calibration)
@@ -837,4 +838,4 @@ static int nnc_calib_dump(int argc, char **argv)
     }
     return RT_EOK;
 }
-MSH_CMD_EXPORT(nnc_calib_dump, Dump NNC6521 OTP calibration Dref values);
+MSH_CMD_EXPORT(nnc_calib_dump, dump_nnc6521_OTP_Dref_values);
