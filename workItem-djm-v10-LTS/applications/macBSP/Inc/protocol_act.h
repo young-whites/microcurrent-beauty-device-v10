@@ -52,10 +52,4 @@ void protocol_temp_report_start(uint8_t handle_id);
  */
 void protocol_temp_report_stop(void);
 
-/**
- * @brief  Initialize the non-blocking ramp thread and its semaphore.
- *         Called once from protocol_init() after decode thread startup.
- */
-void ramp_thread_init(void);
-
 #endif /* __PROTOCOL_ACT_H__ */

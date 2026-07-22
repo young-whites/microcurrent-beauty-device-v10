@@ -21,18 +21,6 @@
 #include "ntc_sensor.h"
 #include <string.h>
 
-/* Ramp abort flag: set by any new current/waveform command to interrupt ongoing ramp */
-static volatile uint8_t s_ramp_abort = 0;
-
-/* Ramp thread dedicated variables */
-static rt_thread_t s_ramp_thread = RT_NULL;
-static rt_sem_t    s_ramp_sem    = RT_NULL;
-static volatile uint8_t  s_ramp_chip      = 0;
-static volatile uint8_t  s_ramp_channel   = 0;
-static volatile uint8_t  s_ramp_wf_id     = 0;
-static volatile uint32_t s_ramp_start_ua  = 0;
-static volatile uint32_t s_ramp_target_ua = 0;
-
 /* ============================================================================
  *  Hardware Helper: get NNC6521 chip ID from handle index
  * ===========================================================================*/
@@ -201,9 +189,6 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Abort any ongoing ramp */
-    s_ramp_abort = 1;
-
     /* Stop waveform on current handle's chip */
     int old_hi = protocol_handle_index(g_dev_state.current_handle);
     if (old_hi >= 0 && g_dev_state.is_running) {
@@ -248,123 +233,6 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     protocol_send_ack(FUNC_HANDLE_SWITCH, ack_params, 1);
 }
 
-#define RAMP_THREAD_PRIORITY    15
-#define RAMP_THREAD_STACK_SIZE  512
-#define RAMP_STEP_MS            15   /* Inter-step delay in milliseconds */
-#define RAMP_TOTAL_MS           100  /* Target total ramp time in milliseconds */
-
-/**
- * @brief  Ramp thread entry function.
- *         Waits on semaphore, then smoothly ramps current from start to target.
- *         Runs in a dedicated low-priority thread to avoid blocking the decode thread.
- */
-static void ramp_thread_entry(void *parameter)
-{
-    while (1) {
-        /* Wait for ramp request */
-        rt_sem_take(s_ramp_sem, RT_WAITING_FOREVER);
-
-        uint8_t  chip = s_ramp_chip;
-        uint8_t  ch   = s_ramp_channel;
-        uint8_t  wf   = s_ramp_wf_id;
-        uint32_t start  = s_ramp_start_ua;
-        uint32_t target = s_ramp_target_ua;
-
-        if (start == target) continue;
-
-        uint32_t diff = (target > start) ? (target - start) : (start - target);
-        uint32_t max_steps = RAMP_TOTAL_MS / RAMP_STEP_MS;
-        uint32_t steps = diff / max_steps;
-        if (steps == 0) steps = 1;
-        uint32_t step_size = diff / steps;
-        if (step_size == 0) step_size = 1;
-
-        uint32_t current = start;
-        int32_t direction = (target > start) ? 1 : -1;
-
-        for (uint32_t i = 0; i < steps; i++) {
-            if (s_ramp_abort) break;
-
-            current += direction * step_size;
-            /* Clamp to target */
-            if (direction > 0 && current > target) current = target;
-            if (direction < 0 && current < target) current = target;
-
-            waveform_update_amplitude_current(chip, ch, wf, current);
-            rt_thread_mdelay(RAMP_STEP_MS);
-
-            /* Check abort again after delay to respond faster */
-            if (s_ramp_abort) break;
-        }
-
-        /* Ensure final value is exact */
-        if (!s_ramp_abort) {
-            waveform_update_amplitude_current(chip, ch, wf, target);
-        }
-    }
-}
-
-/**
- * @brief  Trigger a non-blocking current ramp.
- *         Sets ramp parameters and wakes the ramp thread, then returns immediately.
- *         If a ramp is already running, it will be aborted on its next step.
- *
- * @param  chip_id      NNC6521 chip ID
- * @param  channel      Waveform channel
- * @param  waveform_id  Waveform ID (1~9)
- * @param  start_ua     Starting current in μA
- * @param  target_ua    Target current in μA
- *
- * @note   If start_ua == target_ua, returns immediately.
- * @note   The waveform must already be configured via waveform_apply_current() before calling.
- */
-static void current_ramp_to(uint8_t chip_id, uint8_t channel,
-                            uint8_t waveform_id,
-                            uint32_t start_ua, uint32_t target_ua)
-{
-    if (start_ua == target_ua) return;
-
-    /* Abort any running ramp (old ramp will detect on its next step) */
-    s_ramp_abort = 1;
-
-    /* Drain accumulated semaphore count to prevent stale ramp executions */
-    while (rt_sem_trytake(s_ramp_sem) == RT_EOK) { /* drain */ }
-
-    /* Set new ramp parameters */
-    s_ramp_chip      = chip_id;
-    s_ramp_channel   = channel;
-    s_ramp_wf_id     = waveform_id;
-    s_ramp_start_ua  = start_ua;
-    s_ramp_target_ua = target_ua;
-
-    /* Clear abort AFTER parameters are set, then wake ramp thread */
-    s_ramp_abort = 0;
-    rt_sem_release(s_ramp_sem);
-}
-
-/**
- * @brief  Initialize the ramp thread and its semaphore.
- *         Must be called once during protocol_init().
- */
-void ramp_thread_init(void)
-{
-    s_ramp_sem = rt_sem_create("ramp_sem", 0, RT_IPC_FLAG_FIFO);
-    if (s_ramp_sem == RT_NULL) {
-        rt_kprintf("[PROTO] Failed to create ramp semaphore\n");
-        return;
-    }
-
-    s_ramp_thread = rt_thread_create("ramp", ramp_thread_entry, RT_NULL,
-                                     RAMP_THREAD_STACK_SIZE,
-                                     RAMP_THREAD_PRIORITY, 10);
-    if (s_ramp_thread != RT_NULL) {
-        rt_thread_startup(s_ramp_thread);
-        rt_kprintf("[PROTO] Ramp thread started\n");
-    } else {
-        rt_kprintf("[PROTO] Failed to create ramp thread\n");
-    }
-}
-
 /**
  * @brief  Handle 0x02: Current control.
  *         para[0] = gear level (0~10, lookup table, unit μA)
@@ -395,24 +263,18 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
     uint8_t wf_id = g_dev_state.waveform_id;
     uint32_t actual_ua = g_current_level_map[wf_id - 1][level];
 
-    /* Store old current before updating */
-    uint32_t old_ua = g_dev_state.handle[hi].current_ma;
-
     /* Store new current */
     g_dev_state.handle[hi].current_ma = actual_ua;
 
-    /* If active handle is running, update output with ramp */
+    /* If active handle is running, apply output directly */
     if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
-        uint8_t chip_id = handle_to_chip(hi);
-        uint8_t channel = handle_to_channel(hi);
-
         if (actual_ua == 0) {
-            s_ramp_abort = 1;  /* Stop any ongoing ramp */
+            uint8_t chip_id = handle_to_chip(hi);
+            uint8_t channel = handle_to_channel(hi);
             nnc6521_awg_enable_disable(chip_id, channel, 0);
             rt_kprintf("[PROTO] Current 0 uA, AWG disabled\n");
         } else {
-            /* Ramp from old current to new current (non-blocking) */
-            current_ramp_to(chip_id, channel, wf_id, old_ua, actual_ua);
+            handle_apply_output(hi);
         }
     }
 
@@ -542,9 +404,6 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
     }
 
     if (action == 1) {
-        /* Abort any ongoing ramp before starting */
-        s_ramp_abort = 1;
-
         /* Start: enable 54V boost first, wait for stabilization */
         if (hi <= 1) {
             bsp_boost_1_enable(1);  /* Handle A/B -> CHIP_1 */
@@ -555,15 +414,8 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
 
         g_dev_state.is_running = 1;
 
-        /* Ramp from 0 to target current on start */
-        {
-            uint8_t chip_id = handle_to_chip(hi);
-            uint8_t channel = handle_to_channel(hi);
-            uint8_t wf_id   = g_dev_state.waveform_id;
-            uint32_t target_ua = g_dev_state.handle[hi].current_ma;
-            waveform_apply_current(chip_id, channel, wf_id, 0);  /* Configure waveform at 0 uA */
-            current_ramp_to(chip_id, channel, wf_id, 0, target_ua);
-        }
+        /* Apply waveform at target current directly */
+        handle_apply_output(hi);
 
         /* Enable pump (PB10) for handle C */
         if (hi == 2) {
@@ -584,8 +436,7 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
 
         rt_kprintf("[PROTO] Treatment started (boost enabled)\n");
     } else {
-        /* Pause: abort ongoing ramp, stop waveform output, then disable boost */
-        s_ramp_abort = 1;
+        /* Pause: stop waveform output, then disable boost */
         handle_stop_output(hi);
         g_dev_state.is_running = 0;
 
@@ -688,17 +539,16 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
     /* All waveforms share 0~8mA range, percent mapping is identical.
      * No recalculation needed on waveform switch. */
 
-    /* If treatment is running, switch waveform with ramp */
+    /* If treatment is running, switch waveform */
     int hi = protocol_handle_index(g_dev_state.current_handle);
     if (hi >= 0 && g_dev_state.is_running) {
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
         uint32_t target_ua = g_dev_state.handle[hi].current_ma;
 
-        /* Stop old waveform, configure new one at 0 uA, ramp to target (non-blocking) */
+        /* Stop old waveform, configure new one at target current */
         nnc6521_awg_enable_disable(chip_id, channel, 0);
-        waveform_apply_current(chip_id, channel, waveform_id, 0);
-        current_ramp_to(chip_id, channel, waveform_id, 0, target_ua);
+        waveform_apply_current(chip_id, channel, waveform_id, target_ua);
     }
 
     rt_kprintf("[PROTO] Waveform selected: #%u\n", waveform_id);
