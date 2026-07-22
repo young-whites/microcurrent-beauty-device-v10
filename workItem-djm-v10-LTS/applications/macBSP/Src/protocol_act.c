@@ -22,94 +22,6 @@
 #include <string.h>
 
 /* ============================================================================
- *  Soft-start ramp via periodic timer
- * ===========================================================================*/
-#define RAMP_TIMER_MS    10    /* Timer period: 10ms */
-#define RAMP_MAX_STEPS   10    /* Max steps to complete ramp */
-
-static rt_timer_t s_ramp_timer = RT_NULL;
-static volatile uint8_t  s_ramp_chip    = 0;
-static volatile uint8_t  s_ramp_channel = 0;
-static volatile uint8_t  s_ramp_wf_id   = 0;
-static volatile uint32_t s_ramp_current_ua = 0;
-static volatile uint32_t s_ramp_target_ua  = 0;
-static volatile uint8_t  s_ramp_active = 0;
-
-static void ramp_timer_cb(void *parameter)
-{
-    if (!s_ramp_active) return;
-
-    uint32_t current = s_ramp_current_ua;
-    uint32_t target  = s_ramp_target_ua;
-
-    if (current == target) {
-        /* Target reached, stop timer */
-        s_ramp_active = 0;
-        rt_timer_stop(s_ramp_timer);
-        return;
-    }
-
-    /* Calculate step: diff / remaining_steps, min 1 */
-    uint32_t diff = (target > current) ? (target - current) : (current - target);
-    uint32_t step = diff / RAMP_MAX_STEPS;
-    if (step == 0) step = 1;
-
-    /* Move toward target */
-    if (target > current) {
-        current += step;
-        if (current > target) current = target;
-    } else {
-        if (current < step) current = 0;
-        else current -= step;
-        if (current < target) current = target;
-    }
-
-    s_ramp_current_ua = current;
-    waveform_update_amplitude_current(s_ramp_chip, s_ramp_channel, s_ramp_wf_id, current);
-
-    /* Check if reached */
-    if (current == target) {
-        s_ramp_active = 0;
-        rt_timer_stop(s_ramp_timer);
-    }
-}
-
-static void current_ramp_start(uint8_t chip_id, uint8_t channel,
-                               uint8_t waveform_id, uint32_t target_ua)
-{
-    s_ramp_chip    = chip_id;
-    s_ramp_channel = channel;
-    s_ramp_wf_id   = waveform_id;
-    s_ramp_target_ua = target_ua;
-
-    if (!s_ramp_active) {
-        /* Start timer if not already running */
-        s_ramp_active = 1;
-        rt_timer_start(s_ramp_timer);
-    }
-    /* If already running, just updated target -- timer continues from current position */
-}
-
-static void ramp_timer_init(void)
-{
-    s_ramp_timer = rt_timer_create("ramp_tm",
-                                    ramp_timer_cb,
-                                    RT_NULL,
-                                    rt_tick_from_millisecond(RAMP_TIMER_MS),
-                                    RT_TIMER_FLAG_SOFT_TIMER | RT_TIMER_FLAG_PERIODIC);
-    if (s_ramp_timer == RT_NULL) {
-        rt_kprintf("[RAMP] Failed to create ramp timer\n");
-    } else {
-        rt_kprintf("[RAMP] Timer created, period=%dms\n", RAMP_TIMER_MS);
-    }
-}
-
-void protocol_ramp_timer_init(void)
-{
-    ramp_timer_init();
-}
-
-/* ============================================================================
  *  Hardware Helper: get NNC6521 chip ID from handle index
  * ===========================================================================*/
 
@@ -354,17 +266,9 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
     /* Store new current */
     g_dev_state.handle[hi].current_ma = actual_ua;
 
-    /* If active handle is running, ramp to new current (non-blocking) */
+    /* If active handle is running, apply new current directly */
     if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
-        uint8_t chip_id = handle_to_chip(hi);
-        uint8_t channel = handle_to_channel(hi);
-
-        if (actual_ua == 0) {
-            nnc6521_awg_enable_disable(chip_id, channel, 0);
-            rt_kprintf("[PROTO] Current 0 uA, AWG disabled\n");
-        } else {
-            current_ramp_start(chip_id, channel, g_dev_state.waveform_id, actual_ua);
-        }
+        handle_apply_output(hi);
     }
 
     rt_kprintf("[PROTO] Current set: handle %c = level %u -> %u uA\n", 'A' + hi, level, actual_ua);

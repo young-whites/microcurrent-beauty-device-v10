@@ -52,11 +52,4 @@ void protocol_temp_report_start(uint8_t handle_id);
  */
 void protocol_temp_report_stop(void);
 
-/**
- * @brief  Initialize the soft-start ramp timer.
- *         Creates a 10ms periodic RT-Thread software timer for non-blocking
- *         current ramping. Called from protocol_init().
- */
-void protocol_ramp_timer_init(void);
-
 #endif /* __PROTOCOL_ACT_H__ */
