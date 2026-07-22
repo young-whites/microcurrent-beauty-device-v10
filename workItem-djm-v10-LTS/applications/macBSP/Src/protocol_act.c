@@ -24,6 +24,15 @@
 /* Ramp abort flag: set by any new current/waveform command to interrupt ongoing ramp */
 static volatile uint8_t s_ramp_abort = 0;
 
+/* Ramp thread dedicated variables */
+static rt_thread_t s_ramp_thread = RT_NULL;
+static rt_sem_t    s_ramp_sem    = RT_NULL;
+static volatile uint8_t  s_ramp_chip      = 0;
+static volatile uint8_t  s_ramp_channel   = 0;
+static volatile uint8_t  s_ramp_wf_id     = 0;
+static volatile uint32_t s_ramp_start_ua  = 0;
+static volatile uint32_t s_ramp_target_ua = 0;
+
 /* ============================================================================
  *  Hardware Helper: get NNC6521 chip ID from handle index
  * ===========================================================================*/
@@ -236,13 +245,65 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     protocol_send_ack(FUNC_HANDLE_SWITCH, ack_params, 1);
 }
 
-#define RAMP_STEP_MS   15    /* Inter-step delay in milliseconds */
-#define RAMP_TOTAL_MS  100   /* Target total ramp time in milliseconds */
+#define RAMP_THREAD_PRIORITY    6
+#define RAMP_THREAD_STACK_SIZE  512
+#define RAMP_STEP_MS            15   /* Inter-step delay in milliseconds */
+#define RAMP_TOTAL_MS           100  /* Target total ramp time in milliseconds */
 
 /**
- * @brief  Smoothly ramp current from start_ua to target_ua (in μA).
- *         Uses dynamic step size to keep total ramp time within RAMP_TOTAL_MS.
- *         Can be interrupted by setting s_ramp_abort flag.
+ * @brief  Ramp thread entry function.
+ *         Waits on semaphore, then smoothly ramps current from start to target.
+ *         Runs in a dedicated low-priority thread to avoid blocking the decode thread.
+ */
+static void ramp_thread_entry(void *parameter)
+{
+    while (1) {
+        /* Wait for ramp request */
+        rt_sem_take(s_ramp_sem, RT_WAITING_FOREVER);
+
+        uint8_t  chip = s_ramp_chip;
+        uint8_t  ch   = s_ramp_channel;
+        uint8_t  wf   = s_ramp_wf_id;
+        uint32_t start  = s_ramp_start_ua;
+        uint32_t target = s_ramp_target_ua;
+
+        s_ramp_abort = 0;
+
+        if (start == target) continue;
+
+        uint32_t diff = (target > start) ? (target - start) : (start - target);
+        uint32_t max_steps = RAMP_TOTAL_MS / RAMP_STEP_MS;
+        uint32_t steps = diff / max_steps;
+        if (steps == 0) steps = 1;
+        uint32_t step_size = diff / steps;
+        if (step_size == 0) step_size = 1;
+
+        uint32_t current = start;
+        int32_t direction = (target > start) ? 1 : -1;
+
+        for (uint32_t i = 0; i < steps; i++) {
+            if (s_ramp_abort) break;
+
+            current += direction * step_size;
+            /* Clamp to target */
+            if (direction > 0 && current > target) current = target;
+            if (direction < 0 && current < target) current = target;
+
+            waveform_update_amplitude_current(chip, ch, wf, current);
+            rt_thread_mdelay(RAMP_STEP_MS);
+        }
+
+        /* Ensure final value is exact */
+        if (!s_ramp_abort) {
+            waveform_update_amplitude_current(chip, ch, wf, target);
+        }
+    }
+}
+
+/**
+ * @brief  Trigger a non-blocking current ramp.
+ *         Sets ramp parameters and wakes the ramp thread, then returns immediately.
+ *         If a ramp is already running, it will be aborted on its next step.
  *
  * @param  chip_id      NNC6521 chip ID
  * @param  channel      Waveform channel
@@ -257,53 +318,43 @@ static void current_ramp_to(uint8_t chip_id, uint8_t channel,
                             uint8_t waveform_id,
                             uint32_t start_ua, uint32_t target_ua)
 {
-    if (start_ua == target_ua) {
+    if (start_ua == target_ua) return;
+
+    /* Abort any running ramp (old ramp will detect on its next step) */
+    s_ramp_abort = 1;
+
+    /* Set new ramp parameters */
+    s_ramp_chip      = chip_id;
+    s_ramp_channel   = channel;
+    s_ramp_wf_id     = waveform_id;
+    s_ramp_start_ua  = start_ua;
+    s_ramp_target_ua = target_ua;
+
+    /* Wake up ramp thread */
+    rt_sem_release(s_ramp_sem);
+}
+
+/**
+ * @brief  Initialize the ramp thread and its semaphore.
+ *         Must be called once during protocol_init().
+ */
+void ramp_thread_init(void)
+{
+    s_ramp_sem = rt_sem_create("ramp_sem", 0, RT_IPC_FLAG_FIFO);
+    if (s_ramp_sem == RT_NULL) {
+        rt_kprintf("[PROTO] Failed to create ramp semaphore\n");
         return;
     }
 
-    s_ramp_abort = 0;
-
-    int32_t current = (int32_t)start_ua;
-    int32_t target  = (int32_t)target_ua;
-
-    /* Calculate absolute difference */
-    uint32_t diff = (target > current) ? (uint32_t)(target - current) : (uint32_t)(current - target);
-
-    /* Calculate number of steps: ceil(diff / max_steps_per_cycle) to fit within RAMP_TOTAL_MS */
-    uint32_t max_steps = RAMP_TOTAL_MS / RAMP_STEP_MS;  /* ~6 steps for 100ms/15ms */
-    uint32_t steps = (diff + max_steps - 1) / max_steps; /* ceil division, minimum 1 */
-    if (steps == 0) steps = 1;
-
-    /* Calculate step size */
-    uint32_t step_size = diff / steps;
-    if (step_size == 0) step_size = 1;  /* Minimum step of 1 μA */
-
-    int32_t step = (target > current) ? (int32_t)step_size : -(int32_t)step_size;
-
-    while (current != target) {
-        if (s_ramp_abort) {
-            rt_kprintf("[RAMP] Aborted at %d uA\n", current);
-            return;
-        }
-
-        current += step;
-
-        /* Clamp: don't overshoot target */
-        if ((step > 0 && current > target) || (step < 0 && current < target)) {
-            current = target;
-        }
-
-        waveform_update_amplitude_current(chip_id, channel, waveform_id, (uint32_t)current);
-
-        if (current != target) {
-            rt_thread_mdelay(RAMP_STEP_MS);
-        }
+    s_ramp_thread = rt_thread_create("ramp", ramp_thread_entry, RT_NULL,
+                                     RAMP_THREAD_STACK_SIZE,
+                                     RAMP_THREAD_PRIORITY, 10);
+    if (s_ramp_thread != RT_NULL) {
+        rt_thread_startup(s_ramp_thread);
+        rt_kprintf("[PROTO] Ramp thread started\n");
+    } else {
+        rt_kprintf("[PROTO] Failed to create ramp thread\n");
     }
-
-    /* Ensure final value is exactly the target */
-    waveform_update_amplitude_current(chip_id, channel, waveform_id, target_ua);
-    rt_kprintf("[RAMP] %d uA -> %d uA complete (step=%u uA, %u steps)\n",
-               start_ua, target_ua, step_size, steps);
 }
 
 /**
@@ -347,16 +398,12 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
 
-        /* Abort any ongoing ramp before starting a new one */
-        s_ramp_abort = 1;
-        rt_thread_mdelay(20);  /* Wait for ongoing ramp to notice abort */
-
         if (actual_ua == 0) {
+            s_ramp_abort = 1;  /* Stop any ongoing ramp */
             nnc6521_awg_enable_disable(chip_id, channel, 0);
             rt_kprintf("[PROTO] Current 0 uA, AWG disabled\n");
         } else {
-            /* Ramp from old current to new current */
-            s_ramp_abort = 0;
+            /* Ramp from old current to new current (non-blocking) */
             current_ramp_to(chip_id, channel, wf_id, old_ua, actual_ua);
         }
     }
@@ -636,14 +683,9 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
         uint8_t channel = handle_to_channel(hi);
         uint32_t target_ua = g_dev_state.handle[hi].current_ma;
 
-        /* Abort any ongoing ramp */
-        s_ramp_abort = 1;
-        rt_thread_mdelay(20);
-
-        /* Stop old waveform, configure new one at 0 uA, ramp to target */
+        /* Stop old waveform, configure new one at 0 uA, ramp to target (non-blocking) */
         nnc6521_awg_enable_disable(chip_id, channel, 0);
         waveform_apply_current(chip_id, channel, waveform_id, 0);
-        s_ramp_abort = 0;
         current_ramp_to(chip_id, channel, waveform_id, 0, target_ua);
     }
 
