@@ -229,13 +229,13 @@ const uint32_t g_current_level_map[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT] = {
     { 0, 800, 1000, 1200, 1300, 1500, 1700, 2000, 2200, 2500, 3000 },
 
     /* Waveform 4: Deep Sculpt — S-curve (slow start, fast middle, slow end) */
-    { 0, 237, 1054, 2532, 4000, 5258, 6304, 7126, 7736, 40000, 42000 },
+    { 4000, 8000, 12000, 16000, 20000, 24000, 28000, 32000, 36000, 40000 },
 
     /* Waveform 5: Soft Sculpt — Reverse S (fast start, slow middle, fast end) */
-    { 0, 1636, 2928, 3872, 4486, 4742, 5028, 5718, 6720, 7644, 16000 },
+    {500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000 },
 
     /* Waveform 6: Circulation Sculpt — Front-steep logarithmic */
-    { 0, 3326, 4662, 5578, 6276, 6840, 7308, 7620, 7830, 7940, 16000 },
+    { 0, 3326, 4662, 5578, 6276, 6840, 7308, 7620, 7830, 7940, 20000 },
 
     /* Waveform 7: Smooth & Firm — Quadratic (front-gradual, back-steep) */
     { 0, 600, 1200, 1800, 2400, 3000, 3600, 4200, 4800, 5400, 6000 },
