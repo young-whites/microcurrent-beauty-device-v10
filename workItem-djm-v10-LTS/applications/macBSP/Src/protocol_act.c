@@ -245,7 +245,7 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     protocol_send_ack(FUNC_HANDLE_SWITCH, ack_params, 1);
 }
 
-#define RAMP_THREAD_PRIORITY    6
+#define RAMP_THREAD_PRIORITY    15
 #define RAMP_THREAD_STACK_SIZE  512
 #define RAMP_STEP_MS            15   /* Inter-step delay in milliseconds */
 #define RAMP_TOTAL_MS           100  /* Target total ramp time in milliseconds */
