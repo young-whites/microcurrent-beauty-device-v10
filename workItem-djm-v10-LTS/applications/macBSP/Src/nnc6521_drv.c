@@ -804,3 +804,37 @@ static uint32_t Current_Output(uint8_t chip_id, uint32_t current, uint8_t channe
     Ival = (4096 < Ival) ? 4096 : Ival;
     return Ival;
 }
+
+/* ============================================================================
+ *  MSH Debug: Dump OTP calibration data for all chips/channels
+ * ===========================================================================*/
+
+/**
+ * @brief  Dump OTP calibration Dref values and calculated current ranges.
+ *         Usage: nnc_calib_dump
+ */
+static int nnc_calib_dump(int argc, char **argv)
+{
+    uint8_t chip_id, tSeg;
+    uint16_t Dref;
+    uint8_t d1, d2;
+    int base;
+
+    for (chip_id = 0; chip_id < NNC6521_NUM_CHIPS; chip_id++) {
+        for (uint8_t ch = 0; ch < 2; ch++) {
+            base = (ch == 0) ? CALIB_BASE_ADDRESS_0 : CALIB_BASE_ADDRESS_1;
+            rt_kprintf("[CALIB] Chip%d CH%d (base=0x%02X):\n", chip_id, ch, base);
+            for (tSeg = 0; tSeg < TEST_POINT_NUM; tSeg++) {
+                d1 = nnc6521_spi_otp_read(chip_id, base + 2 * tSeg);
+                d2 = nnc6521_spi_otp_read(chip_id, base + 2 * tSeg + 1);
+                Dref = ((uint16_t)d2 << 8) | (uint16_t)d1;
+                float Imin = ((float)tSeg * 163.84f + 1.0f) * Dref / 1000.0f;
+                float Imax = ((float)(tSeg + 1) * 163.84f) * Dref / 1000.0f;
+                rt_kprintf("  seg%02d: Dref=%5u  Imin=%8.1f uA  Imax=%8.1f uA\n",
+                           tSeg, Dref, Imin, Imax);
+            }
+        }
+    }
+    return RT_EOK;
+}
+MSH_CMD_EXPORT(nnc_calib_dump, Dump NNC6521 OTP calibration Dref values);
