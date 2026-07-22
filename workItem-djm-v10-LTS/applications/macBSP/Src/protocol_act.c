@@ -236,9 +236,12 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     protocol_send_ack(FUNC_HANDLE_SWITCH, ack_params, 1);
 }
 
+#define RAMP_STEP_MS   15    /* Inter-step delay in milliseconds */
+#define RAMP_TOTAL_MS  100   /* Target total ramp time in milliseconds */
+
 /**
  * @brief  Smoothly ramp current from start_ua to target_ua (in μA).
- *         Uses 200μA steps with 15ms inter-step delay.
+ *         Uses dynamic step size to keep total ramp time within RAMP_TOTAL_MS.
  *         Can be interrupted by setting s_ramp_abort flag.
  *
  * @param  chip_id      NNC6521 chip ID
@@ -262,7 +265,20 @@ static void current_ramp_to(uint8_t chip_id, uint8_t channel,
 
     int32_t current = (int32_t)start_ua;
     int32_t target  = (int32_t)target_ua;
-    int32_t step    = (target > current) ? 200 : -200;
+
+    /* Calculate absolute difference */
+    uint32_t diff = (target > current) ? (uint32_t)(target - current) : (uint32_t)(current - target);
+
+    /* Calculate number of steps: ceil(diff / max_steps_per_cycle) to fit within RAMP_TOTAL_MS */
+    uint32_t max_steps = RAMP_TOTAL_MS / RAMP_STEP_MS;  /* ~6 steps for 100ms/15ms */
+    uint32_t steps = (diff + max_steps - 1) / max_steps; /* ceil division, minimum 1 */
+    if (steps == 0) steps = 1;
+
+    /* Calculate step size */
+    uint32_t step_size = diff / steps;
+    if (step_size == 0) step_size = 1;  /* Minimum step of 1 μA */
+
+    int32_t step = (target > current) ? (int32_t)step_size : -(int32_t)step_size;
 
     while (current != target) {
         if (s_ramp_abort) {
@@ -280,13 +296,14 @@ static void current_ramp_to(uint8_t chip_id, uint8_t channel,
         waveform_update_amplitude_current(chip_id, channel, waveform_id, (uint32_t)current);
 
         if (current != target) {
-            rt_thread_mdelay(15);
+            rt_thread_mdelay(RAMP_STEP_MS);
         }
     }
 
     /* Ensure final value is exactly the target */
     waveform_update_amplitude_current(chip_id, channel, waveform_id, target_ua);
-    rt_kprintf("[RAMP] %d uA -> %d uA complete\n", start_ua, target_ua);
+    rt_kprintf("[RAMP] %d uA -> %d uA complete (step=%u uA, %u steps)\n",
+               start_ua, target_ua, step_size, steps);
 }
 
 /**
