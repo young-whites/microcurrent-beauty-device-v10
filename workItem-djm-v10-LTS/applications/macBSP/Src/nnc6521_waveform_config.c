@@ -429,6 +429,145 @@ void waveform_apply(uint8_t chip_id, uint8_t channel,
     }
 }
 
+/* ============================================================================ *  Public API: Apply waveform with actual current (μA) bypassing percent calc
+ * ===========================================================================*/
+
+/**
+ * @brief Apply specified waveform to NNC6521 chip using actual current in μA.
+ *
+ * Same logic as waveform_apply() but accepts actual_ua directly instead of
+ * percent. Avoids the max_current clamping issue in waveform_calc_current().
+ *
+ * @param[in] chip_id     Chip ID
+ * @param[in] channel     Channel number
+ * @param[in] waveform_id Waveform ID (1~WAVEFORM_COUNT)
+ * @param[in] actual_ua   Actual output current in microamps (μA)
+ */
+void waveform_apply_current(uint8_t chip_id, uint8_t channel,
+                            uint8_t waveform_id, uint32_t actual_ua)
+{
+    if (waveform_id < 1 || waveform_id > WAVEFORM_COUNT) return;
+
+    const waveform_config_t *cfg = &g_waveform_configs[waveform_id - 1];
+
+    /* Map waveform type to NNC6521 preloaded waveform enum */
+    uint8_t nnc_waveform = get_preloaded_type(cfg->waveform_type);
+
+    /* CI (current index) for drive strength control.
+     * Default value 4 provides reasonable drive range. */
+    uint8_t ci = 4;
+
+    switch (cfg->gen_method) {
+        case GEN_METHOD_PRELOADED:
+            nnc6521_preloaded_waveform(chip_id, channel,
+                                       nnc_waveform,
+                                       cfg->point_num,
+                                       ci,
+                                       cfg->half_wave_clk,
+                                       cfg->half_wave_clk,
+                                       cfg->silent_time,
+                                       cfg->rest_time);
+            break;
+
+        case GEN_METHOD_CUSTOM_SPI:
+            if (cfg->waveform_data != NULL) {
+                rt_kprintf("[WF] id=%d pts=%d current=%u uA\n",
+                    waveform_id, cfg->point_num, actual_ua);
+                /* Low-freq waveforms need reduced PCLK to fit 16-bit register */
+                if (waveform_id == 8) {
+                    set_pclk_divider(chip_id, PCLK_DIV_16);
+                } else if (waveform_id == 6) {
+                    set_pclk_divider(chip_id, PCLK_DIV_16);
+                }
+
+                nnc6521_customized_waveform(chip_id, channel,
+                                            cfg->point_num,
+                                            cfg->waveform_data,
+                                            actual_ua,
+                                            cfg->half_wave_clk,
+                                            cfg->half_wave_clk,
+                                            cfg->silent_time,
+                                            cfg->rest_time,
+                                            0);  /* asymmetric */
+
+                /* Restore PCLK to default */
+                if (waveform_id == 6 || waveform_id == 8) {
+                    set_pclk_divider(chip_id, PCLK_DIV_1);
+                }
+            }
+            break;
+
+        case GEN_METHOD_AMPLITUDE_MOD:
+            if (cfg->waveform_data != NULL) {
+                nnc6521_amplitude_modulation(chip_id, channel,
+                                             cfg->point_num,
+                                             cfg->waveform_data,
+                                             actual_ua,
+                                             cfg->carrier_clk,
+                                             cfg->silent_time,
+                                             cfg->am_interval);
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
+/* ============================================================================ *  Public API: Update waveform amplitude with actual current (μA)
+ * ===========================================================================*/
+
+/**
+ * @brief Update waveform amplitude using actual current in μA.
+ *
+ * Same logic as waveform_update_amplitude() but accepts actual_ua directly
+ * instead of percent. Avoids the max_current clamping issue.
+ *
+ * @param[in] chip_id     Chip ID
+ * @param[in] channel     Channel number
+ * @param[in] waveform_id Waveform ID (1~WAVEFORM_COUNT)
+ * @param[in] actual_ua   Actual output current in microamps (μA)
+ */
+void waveform_update_amplitude_current(uint8_t chip_id, uint8_t channel,
+                                       uint8_t waveform_id, uint32_t actual_ua)
+{
+    if (waveform_id < 1 || waveform_id > WAVEFORM_COUNT) return;
+
+    const waveform_config_t *cfg = &g_waveform_configs[waveform_id - 1];
+
+    /* Stop AWG before updating to prevent reading mixed data */
+    nnc6521_awg_enable_disable(chip_id, channel, 0);
+
+    switch (cfg->gen_method) {
+        case GEN_METHOD_PRELOADED:
+        {
+            uint8_t ci = 4;
+            int addr = WG_REG_ADDR(channel, WG_DRIVE_REG_CTRL2_OFFSET);
+            nnc6521_write_wave_reg(chip_id, addr, ci);
+            break;
+        }
+
+        case GEN_METHOD_CUSTOM_SPI:
+            if (cfg->waveform_data != NULL) {
+                nnc6521_customized_amplitude(chip_id, channel,
+                                             cfg->point_num,
+                                             cfg->waveform_data,
+                                             actual_ua);
+            }
+            break;
+
+        case GEN_METHOD_AMPLITUDE_MOD:
+            waveform_apply_current(chip_id, channel, waveform_id, actual_ua);
+            return;  /* waveform_apply_current already re-enables AWG */
+
+        default:
+            break;
+    }
+
+    /* Re-enable AWG after amplitude update */
+    nnc6521_awg_enable_disable(chip_id, channel, 1);
+}
+
 /* ============================================================================ *  Public API: Update waveform amplitude only (no timing reconfiguration)
  * ===========================================================================*/
 

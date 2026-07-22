@@ -141,23 +141,23 @@ static void handle_stop_output(int handle_idx)
 
 /**
  * @brief  Apply waveform output on the chip associated with the given handle.
- *         Uses current device state (waveform_id, current_percent).
+ *         Uses current device state (waveform_id, current_ma in μA).
  */
 static void handle_apply_output(int handle_idx)
 {
     uint8_t chip_id = handle_to_chip(handle_idx);
     uint8_t wf_id   = g_dev_state.waveform_id;
-    uint8_t percent  = g_dev_state.handle[handle_idx].current_percent;
+    uint32_t actual_ua = g_dev_state.handle[handle_idx].current_ma;
 
     uint8_t channel = handle_to_channel(handle_idx);
 
-    if (percent == 0) {
+    if (actual_ua == 0) {
         nnc6521_awg_enable_disable(chip_id, channel, 0);
-        rt_kprintf("[PROTO] Current 0%%, output disabled on chip %d ch %d\n", chip_id, channel);
+        rt_kprintf("[PROTO] Current 0 uA, output disabled on chip %d ch %d\n", chip_id, channel);
         return;
     }
 
-    waveform_apply(chip_id, channel, wf_id, percent);
+    waveform_apply_current(chip_id, channel, wf_id, actual_ua);
 }
 
 /* ============================================================================
@@ -237,36 +237,36 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 }
 
 /**
- * @brief  Smoothly ramp current from start_percent to target_percent.
- *         Uses 2% steps with 15ms inter-step delay.
+ * @brief  Smoothly ramp current from start_ua to target_ua (in μA).
+ *         Uses 200μA steps with 15ms inter-step delay.
  *         Can be interrupted by setting s_ramp_abort flag.
  *
- * @param  chip_id        NNC6521 chip ID
- * @param  channel        Waveform channel
- * @param  waveform_id    Waveform ID (1~9)
- * @param  start_percent  Starting current percentage
- * @param  target_percent Target current percentage
+ * @param  chip_id      NNC6521 chip ID
+ * @param  channel      Waveform channel
+ * @param  waveform_id  Waveform ID (1~9)
+ * @param  start_ua     Starting current in μA
+ * @param  target_ua    Target current in μA
  *
- * @note   If start_percent == target_percent, returns immediately.
- * @note   The waveform must already be configured via waveform_apply() before calling.
+ * @note   If start_ua == target_ua, returns immediately.
+ * @note   The waveform must already be configured via waveform_apply_current() before calling.
  */
 static void current_ramp_to(uint8_t chip_id, uint8_t channel,
                             uint8_t waveform_id,
-                            uint8_t start_percent, uint8_t target_percent)
+                            uint32_t start_ua, uint32_t target_ua)
 {
-    if (start_percent == target_percent) {
+    if (start_ua == target_ua) {
         return;
     }
 
     s_ramp_abort = 0;
 
-    int16_t current = (int16_t)start_percent;
-    int16_t target  = (int16_t)target_percent;
-    int16_t step    = (target > current) ? 2 : -2;
+    int32_t current = (int32_t)start_ua;
+    int32_t target  = (int32_t)target_ua;
+    int32_t step    = (target > current) ? 200 : -200;
 
     while (current != target) {
         if (s_ramp_abort) {
-            rt_kprintf("[RAMP] Aborted at %d%%\n", current);
+            rt_kprintf("[RAMP] Aborted at %d uA\n", current);
             return;
         }
 
@@ -277,7 +277,7 @@ static void current_ramp_to(uint8_t chip_id, uint8_t channel,
             current = target;
         }
 
-        waveform_update_amplitude(chip_id, channel, waveform_id, (uint8_t)current);
+        waveform_update_amplitude_current(chip_id, channel, waveform_id, (uint32_t)current);
 
         if (current != target) {
             rt_thread_mdelay(15);
@@ -285,8 +285,8 @@ static void current_ramp_to(uint8_t chip_id, uint8_t channel,
     }
 
     /* Ensure final value is exactly the target */
-    waveform_update_amplitude(chip_id, channel, waveform_id, target_percent);
-    rt_kprintf("[RAMP] %d%% -> %d%% complete\n", start_percent, target_percent);
+    waveform_update_amplitude_current(chip_id, channel, waveform_id, target_ua);
+    rt_kprintf("[RAMP] %d uA -> %d uA complete\n", start_ua, target_ua);
 }
 
 /**
@@ -315,30 +315,17 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* 查表获取实际电流 (μA) */
+    /* Lookup actual current from level table (μA) */
     uint8_t wf_id = g_dev_state.waveform_id;
     uint32_t actual_ua = g_current_level_map[wf_id - 1][level];
 
-    /* 计算 percent（0~100）给 NNC6521 驱动 */
-    const waveform_config_t *cfg = waveform_get_config(wf_id);
-    uint8_t percent = 0;
-    if (cfg && cfg->max_current > cfg->min_current) {
-        /* max_current/min_current in mA → convert to μA for consistent calc */
-        uint32_t max_ua = cfg->max_current * 1000;
-        uint32_t min_ua = cfg->min_current * 1000;
-        if (max_ua > min_ua) {
-            percent = (uint8_t)((actual_ua - min_ua) * 100 / (max_ua - min_ua));
-        }
-    }
+    /* Store old current before updating */
+    uint32_t old_ua = g_dev_state.handle[hi].current_ma;
 
-    /* Store old percent before updating */
-    uint8_t old_percent = g_dev_state.handle[hi].current_percent;
-
-    /* 存储 */
+    /* Store new current */
     g_dev_state.handle[hi].current_ma = actual_ua;
-    g_dev_state.handle[hi].current_percent = percent;
 
-    /* 如果当前手柄正在运行，更新输出（斜坡渐变） */
+    /* If active handle is running, update output with ramp */
     if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
@@ -347,17 +334,17 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         s_ramp_abort = 1;
         rt_thread_mdelay(20);  /* Wait for ongoing ramp to notice abort */
 
-        if (percent == 0) {
+        if (actual_ua == 0) {
             nnc6521_awg_enable_disable(chip_id, channel, 0);
-            rt_kprintf("[PROTO] Current 0%%, AWG disabled\n");
+            rt_kprintf("[PROTO] Current 0 uA, AWG disabled\n");
         } else {
-            /* Ramp from old percent to new percent */
+            /* Ramp from old current to new current */
             s_ramp_abort = 0;
-            current_ramp_to(chip_id, channel, wf_id, old_percent, percent);
+            current_ramp_to(chip_id, channel, wf_id, old_ua, actual_ua);
         }
     }
 
-    rt_kprintf("[PROTO] Current set: handle %c = level %u -> %u uA (%u%%)\n", 'A' + hi, level, actual_ua, percent);
+    rt_kprintf("[PROTO] Current set: handle %c = level %u -> %u uA\n", 'A' + hi, level, actual_ua);
 
     /* ACK 回复：返回 [档位, handle_id] */
     uint8_t ack_params[2] = { level, handle_id };
@@ -493,14 +480,14 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
 
         g_dev_state.is_running = 1;
 
-        /* Ramp from 0 to target percent on start */
+        /* Ramp from 0 to target current on start */
         {
             uint8_t chip_id = handle_to_chip(hi);
             uint8_t channel = handle_to_channel(hi);
             uint8_t wf_id   = g_dev_state.waveform_id;
-            uint8_t target_pct = g_dev_state.handle[hi].current_percent;
-            waveform_apply(chip_id, channel, wf_id, 0);  /* Configure waveform at 0% */
-            current_ramp_to(chip_id, channel, wf_id, 0, target_pct);
+            uint32_t target_ua = g_dev_state.handle[hi].current_ma;
+            waveform_apply_current(chip_id, channel, wf_id, 0);  /* Configure waveform at 0 uA */
+            current_ramp_to(chip_id, channel, wf_id, 0, target_ua);
         }
 
         /* Enable pump (PB10) for handle C */
@@ -630,17 +617,17 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
     if (hi >= 0 && g_dev_state.is_running) {
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
-        uint8_t target_pct = g_dev_state.handle[hi].current_percent;
+        uint32_t target_ua = g_dev_state.handle[hi].current_ma;
 
         /* Abort any ongoing ramp */
         s_ramp_abort = 1;
         rt_thread_mdelay(20);
 
-        /* Stop old waveform, configure new one at 0%, ramp to target */
+        /* Stop old waveform, configure new one at 0 uA, ramp to target */
         nnc6521_awg_enable_disable(chip_id, channel, 0);
-        waveform_apply(chip_id, channel, waveform_id, 0);
+        waveform_apply_current(chip_id, channel, waveform_id, 0);
         s_ramp_abort = 0;
-        current_ramp_to(chip_id, channel, waveform_id, 0, target_pct);
+        current_ramp_to(chip_id, channel, waveform_id, 0, target_ua);
     }
 
     rt_kprintf("[PROTO] Waveform selected: #%u\n", waveform_id);
@@ -799,9 +786,9 @@ void protocol_start_waveform(void)
     if (hi >= 0 && g_dev_state.is_running) {
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
-        waveform_apply(chip_id, channel,
-                       g_dev_state.waveform_id,
-                       g_dev_state.handle[hi].current_percent);
+        waveform_apply_current(chip_id, channel,
+                               g_dev_state.waveform_id,
+                               g_dev_state.handle[hi].current_ma);
         rt_kprintf("[PROTO] Waveform started on chip %d ch %d\n", chip_id, channel);
     }
 }

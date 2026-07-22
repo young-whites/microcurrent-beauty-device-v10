@@ -141,6 +141,33 @@ const waveform_config_t* waveform_get_config(uint8_t waveform_id);
 void waveform_update_amplitude(uint8_t chip_id, uint8_t channel,
                                uint8_t waveform_id, uint8_t percent);
 
+/**
+ * @brief Apply waveform using actual current in μA (bypasses percent calc)
+ *
+ * Same logic as waveform_apply() but accepts actual_ua directly.
+ * Avoids the max_current clamping issue in waveform_calc_current().
+ *
+ * @param[in] chip_id     Chip ID
+ * @param[in] channel     Waveform channel
+ * @param[in] waveform_id Waveform ID (1~9)
+ * @param[in] actual_ua   Actual output current in microamps (μA)
+ */
+void waveform_apply_current(uint8_t chip_id, uint8_t channel,
+                            uint8_t waveform_id, uint32_t actual_ua);
+
+/**
+ * @brief Update waveform amplitude using actual current in μA (bypasses percent calc)
+ *
+ * Same logic as waveform_update_amplitude() but accepts actual_ua directly.
+ *
+ * @param[in] chip_id     Chip ID
+ * @param[in] channel     Waveform channel
+ * @param[in] waveform_id Waveform ID (1~9)
+ * @param[in] actual_ua   Actual output current in microamps (μA)
+ */
+void waveform_update_amplitude_current(uint8_t chip_id, uint8_t channel,
+                                       uint8_t waveform_id, uint32_t actual_ua);
+
 #ifdef __cplusplus
 }
 #endif
