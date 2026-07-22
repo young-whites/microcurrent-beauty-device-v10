@@ -201,6 +201,9 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         return;
     }
 
+    /* Abort any ongoing ramp */
+    s_ramp_abort = 1;
+
     /* Stop waveform on current handle's chip */
     int old_hi = protocol_handle_index(g_dev_state.current_handle);
     if (old_hi >= 0 && g_dev_state.is_running) {
@@ -267,8 +270,6 @@ static void ramp_thread_entry(void *parameter)
         uint32_t start  = s_ramp_start_ua;
         uint32_t target = s_ramp_target_ua;
 
-        s_ramp_abort = 0;
-
         if (start == target) continue;
 
         uint32_t diff = (target > start) ? (target - start) : (start - target);
@@ -291,6 +292,9 @@ static void ramp_thread_entry(void *parameter)
 
             waveform_update_amplitude_current(chip, ch, wf, current);
             rt_thread_mdelay(RAMP_STEP_MS);
+
+            /* Check abort again after delay to respond faster */
+            if (s_ramp_abort) break;
         }
 
         /* Ensure final value is exact */
@@ -323,6 +327,9 @@ static void current_ramp_to(uint8_t chip_id, uint8_t channel,
     /* Abort any running ramp (old ramp will detect on its next step) */
     s_ramp_abort = 1;
 
+    /* Drain accumulated semaphore count to prevent stale ramp executions */
+    while (rt_sem_trytake(s_ramp_sem) == RT_EOK) { /* drain */ }
+
     /* Set new ramp parameters */
     s_ramp_chip      = chip_id;
     s_ramp_channel   = channel;
@@ -330,7 +337,8 @@ static void current_ramp_to(uint8_t chip_id, uint8_t channel,
     s_ramp_start_ua  = start_ua;
     s_ramp_target_ua = target_ua;
 
-    /* Wake up ramp thread */
+    /* Clear abort AFTER parameters are set, then wake ramp thread */
+    s_ramp_abort = 0;
     rt_sem_release(s_ramp_sem);
 }
 
@@ -534,6 +542,9 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
     }
 
     if (action == 1) {
+        /* Abort any ongoing ramp before starting */
+        s_ramp_abort = 1;
+
         /* Start: enable 54V boost first, wait for stabilization */
         if (hi <= 1) {
             bsp_boost_1_enable(1);  /* Handle A/B -> CHIP_1 */
@@ -573,7 +584,8 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
 
         rt_kprintf("[PROTO] Treatment started (boost enabled)\n");
     } else {
-        /* Pause: stop waveform output, then disable boost */
+        /* Pause: abort ongoing ramp, stop waveform output, then disable boost */
+        s_ramp_abort = 1;
         handle_stop_output(hi);
         g_dev_state.is_running = 0;
 
