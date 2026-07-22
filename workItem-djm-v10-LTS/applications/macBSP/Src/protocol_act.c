@@ -12,6 +12,7 @@
 #include "protocol.h"
 #include "bsp_hard.h"
 #include "bsp_typedef.h"
+#include "bsp_beep.h"
 #include "nnc6521.h"
 #include "nnc6521_waveform_config.h"
 #include "nnc6521_waveform_config.h"
@@ -644,6 +645,9 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
 
     rt_kprintf("[PROTO] Dispatch: type=0x%02X func=0x%02X param_len=%u\n",
                type, func, param_len);
+
+    /* Beep once on each valid command received */
+    BEEP_Blink(1, 0, 0);
 
     if (type == FRAME_TYPE_ACT || type == FRAME_TYPE_GET) {
         switch (func) {
