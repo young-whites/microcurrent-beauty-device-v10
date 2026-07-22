@@ -229,19 +229,19 @@ const uint32_t g_current_level_map[WAVEFORM_COUNT][WAVEFORM_LEVEL_COUNT] = {
     { 0, 800, 1000, 1200, 1300, 1500, 1700, 2000, 2200, 2500, 3000 },
 
     /* Waveform 4: Deep Sculpt — S-curve (slow start, fast middle, slow end) */
-    { 0, 237, 1054, 2532, 4000, 5258, 6304, 7126, 7736, 7970, 8000 },
+    { 0, 237, 1054, 2532, 4000, 5258, 6304, 7126, 7736, 40000, 42000 },
 
     /* Waveform 5: Soft Sculpt — Reverse S (fast start, slow middle, fast end) */
-    { 0, 1636, 2928, 3872, 4486, 4742, 5028, 5718, 6720, 7644, 8000 },
+    { 0, 1636, 2928, 3872, 4486, 4742, 5028, 5718, 6720, 7644, 16000 },
 
     /* Waveform 6: Circulation Sculpt — Front-steep logarithmic */
-    { 0, 3326, 4662, 5578, 6276, 6840, 7308, 7620, 7830, 7940, 8000 },
+    { 0, 3326, 4662, 5578, 6276, 6840, 7308, 7620, 7830, 7940, 16000 },
 
     /* Waveform 7: Smooth & Firm — Quadratic (front-gradual, back-steep) */
     { 0, 600, 1200, 1800, 2400, 3000, 3600, 4200, 4800, 5400, 6000 },
 
     /* Waveform 8: Lymphatic Drainage — Cubic (extremely gentle start, steep end) */
-    { 0, 400, 700, 900, 1100, 1300, 1500, 1700, 1900, 14000, 15000 },
+    { 0, 1500, 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 15000 },
 
     /* Waveform 9: Soothing Ending — Parabolic (mid-peak, symmetric taper) */
     { 0, 2000, 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000 }
