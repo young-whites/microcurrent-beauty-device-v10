@@ -131,8 +131,8 @@ void dac7311_set_voltage(float voltage)
     uint16_t value = (uint16_t)((voltage / DAC7311_VREF) * (DAC7311_RESOLUTION - 1) + 0.5f);
     if (value > 16383) value = 16383;
 
-    /* Build 16-bit frame: [MODE(2)=00 DATA(14) RSVD(2)=0] */
-    uint16_t frame = (value << 2) & 0x3FFC;
+    /* Build 16-bit frame: D15:D14=mode(00=normal), D13:D0=data */
+    uint16_t frame = value;
 
     /* Write to DAC */
     dac7311_write_frame(frame);
@@ -146,7 +146,8 @@ void dac7311_set_raw(uint16_t value)
 {
     if (value > 16383) value = 16383;
 
-    uint16_t frame = (value << 2) & 0x3FFC;
+    /* Build 16-bit frame: D15:D14=mode(00=normal), D13:D0=data */
+    uint16_t frame = value;
     dac7311_write_frame(frame);
 
     s_dac_raw = value;
