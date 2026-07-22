@@ -481,6 +481,9 @@ int protocol_init(void)
 
     rt_thread_startup(s_decode_thread);
 
+    /* Initialize soft-start ramp timer (defined in protocol_act.c) */
+    protocol_ramp_timer_init();
+
     rt_kprintf("[PROTO] Protocol module initialized OK\n");
 
     return RT_EOK;
