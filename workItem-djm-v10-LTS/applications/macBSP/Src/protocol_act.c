@@ -189,9 +189,9 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Stop waveform on current handle's chip */
+    /* Always stop AWG on old handle's channel (regardless of is_running) */
     int old_hi = protocol_handle_index(g_dev_state.current_handle);
-    if (old_hi >= 0 && g_dev_state.is_running) {
+    if (old_hi >= 0) {
         handle_stop_output(old_hi);
     }
 
