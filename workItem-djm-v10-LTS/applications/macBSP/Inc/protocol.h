@@ -88,7 +88,7 @@ extern "C" {
 /* ============================================================================
  *  Protocol Buffer Configuration
  * ===========================================================================*/
-#define PROTO_RX_BUF_SIZE   512        /* UART receive circular queue size */
+#define PROTO_RX_BUF_SIZE   2048       /* UART receive circular queue size */
 #define PROTO_TX_BUF_SIZE   64         /* UART transmit buffer size */
 #define PROTO_MAX_FRAME_LEN 64         /* Maximum single frame length */
 #define PROTO_CMD_BUF_SIZE  32         /* Command decode buffer size */

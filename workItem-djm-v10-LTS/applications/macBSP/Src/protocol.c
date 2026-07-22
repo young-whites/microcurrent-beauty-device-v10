@@ -369,7 +369,8 @@ static void protocol_decode_thread_entry(void *parameter)
             protocol_decode_byte(rx_byte);
         }
 
-        rt_thread_mdelay(5);
+        /* Small yield to allow batch processing, semaphore will re-wake on new data */
+        rt_thread_mdelay(1);
     }
 }
 
