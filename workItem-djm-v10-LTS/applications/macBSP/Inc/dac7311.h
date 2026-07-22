@@ -131,21 +131,8 @@ float dac7311_get_voltage(void);
 void dac7311_write_raw_frame(uint16_t frame);
 
 /**
- * @brief  Set SPI clock delay (controls SCLK high/low time).
- * @param  delay_us  Delay in microseconds. 0 = fast mode (~140ns).
- */
-void dac7311_set_delay(uint32_t delay_us);
-
-/**
- * @brief  Get current SPI clock delay.
- * @return Delay in microseconds (0 = fast mode).
- */
-uint32_t dac7311_get_delay(void);
-
-/**
- * @brief  Set pump speed by percentage with non-linear voltage mapping.
- *         Handles dead zone, control zone, and saturation zone.
- * @param  percent  Pump speed (0 = off, 1~100 = speed level).
+ * @brief  Set pump speed by percentage (linear: 0%=0V, 100%=5.0V).
+ * @param  percent  Pump speed (0~100).
  */
 void dac7311_set_pump_speed(uint8_t percent);
 
