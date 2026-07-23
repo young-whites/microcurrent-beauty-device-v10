@@ -160,13 +160,15 @@ static void handle_apply_output(int handle_idx)
         return;
     }
 
-    /* Mutual exclusion: disable the OTHER channel on the same chip (A/B share CHIP_1) */
-    uint8_t other_channel = (channel == WAVEFORM_GEN_CH0) ? WAVEFORM_GEN_CH1 : WAVEFORM_GEN_CH0;
-    nnc6521_awg_enable_disable(chip_id, other_channel, 0);
-    nnc6521_analog_disable(chip_id, other_channel);
+    /* Nuclear option: disable ALL channels on this chip first */
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Global off */
+    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
+    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH1, 0);
+    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
+    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
 
-    /* Re-enable analog output stage and global drive before applying waveform */
-    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);  /* Global drive enable */
+    /* Now enable ONLY the target channel */
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);  /* Global on */
     nnc6521_analog_enable(chip_id, channel);
     waveform_apply_current(chip_id, channel, wf_id, actual_ua);
 }
