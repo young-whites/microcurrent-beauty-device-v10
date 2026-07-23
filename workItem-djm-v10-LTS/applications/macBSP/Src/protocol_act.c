@@ -125,7 +125,7 @@ static void handle_stop_output(int handle_idx)
     uint8_t chip_id = handle_to_chip(handle_idx);
 
     /* Full chip shutdown: zero everything on both channels */
-    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH1, 0);
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
@@ -159,7 +159,7 @@ static void handle_apply_output(int handle_idx)
     }
 
     /* Step 1: Shut down EVERYTHING on this chip */
-    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent mode */
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH1, 0);
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
@@ -167,16 +167,12 @@ static void handle_apply_output(int handle_idx)
 
     rt_kprintf("[APPLY] chip=%d target_ch=%d wf=%d cur=%u uA\n",
                chip_id, channel, wf_id, actual_ua);
-    rt_kprintf("[APPLY] ANA_EN_1=0x%02X ANA_EN_2=0x%02X\n",
-               nnc6521_read_reg(chip_id, 0x41),
-               nnc6521_read_reg(chip_id, 0x42));
 
-    /* Step 2: Enable ONLY the target channel */
-    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);
+    /* Step 2: Enable ONLY the target channel (independent mode, no sync) */
     nnc6521_analog_enable(chip_id, channel);
     waveform_apply_current(chip_id, channel, wf_id, actual_ua);
 
-    rt_kprintf("[APPLY] After enable: ANA_EN_1=0x%02X ANA_EN_2=0x%02X\n",
+    rt_kprintf("[APPLY] After: ANA_EN_1=0x%02X ANA_EN_2=0x%02X\n",
                nnc6521_read_reg(chip_id, 0x41),
                nnc6521_read_reg(chip_id, 0x42));
 }
@@ -583,7 +579,7 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
 
         /* Stop old waveform, configure new one at target current */
         nnc6521_awg_enable_disable(chip_id, channel, 0);
-        nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);  /* Re-enable global drive */
+        nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
         nnc6521_analog_enable(chip_id, channel);
         waveform_apply_current(chip_id, channel, waveform_id, target_ua);
     }
@@ -753,7 +749,7 @@ void protocol_start_waveform(void)
         uint8_t other_ch = (channel == WAVEFORM_GEN_CH0) ? WAVEFORM_GEN_CH1 : WAVEFORM_GEN_CH0;
         nnc6521_awg_enable_disable(chip_id, other_ch, 0);
         nnc6521_analog_disable(chip_id, other_ch);
-        nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);  /* Global drive enable */
+        nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
         nnc6521_analog_enable(chip_id, channel);
         waveform_apply_current(chip_id, channel,
                                g_dev_state.waveform_id,

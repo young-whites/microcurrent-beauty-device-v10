@@ -75,7 +75,8 @@ void nnc6521_init(uint8_t chip_id)
 
     /* Basic clock and analog setup */
     nnc6521_write_reg(chip_id, CLK_CTRL_REG_ADDR, 0x00);     /* PCLK div = 1 (2MHz) */
-    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);  /* Global drive enable */
+    nnc6521_write_reg(NNC6521_CHIP_1, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
+    nnc6521_write_reg(NNC6521_CHIP_2, WAVEGEN_GLOBAL_REG_0, 0x00);
 }
 
 /* ============================================================================
