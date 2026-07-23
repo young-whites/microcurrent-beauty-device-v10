@@ -125,6 +125,7 @@ static void handle_stop_output(int handle_idx)
     uint8_t chip_id = handle_to_chip(handle_idx);
     uint8_t channel = handle_to_channel(handle_idx);
     nnc6521_awg_enable_disable(chip_id, channel, 0);
+    nnc6521_analog_disable(chip_id, channel);  /* Fully cut analog output */
 
     /* Disable 54V boost for the handle's chip */
     if (handle_idx <= 1) {
@@ -133,7 +134,7 @@ static void handle_stop_output(int handle_idx)
         bsp_boost_2_enable(0);  /* Handle C -> CHIP_2 */
     }
 
-    rt_kprintf("[PROTO] Waveform stopped, boost disabled on chip %d ch %d\n", chip_id, channel);
+    rt_kprintf("[PROTO] Waveform stopped, analog+boost disabled on chip %d ch %d\n", chip_id, channel);
 }
 
 /**
@@ -150,10 +151,13 @@ static void handle_apply_output(int handle_idx)
 
     if (actual_ua == 0) {
         nnc6521_awg_enable_disable(chip_id, channel, 0);
+        nnc6521_analog_disable(chip_id, channel);
         rt_kprintf("[PROTO] Current 0 uA, output disabled on chip %d ch %d\n", chip_id, channel);
         return;
     }
 
+    /* Re-enable analog output stage before applying waveform */
+    nnc6521_analog_enable(chip_id, channel);
     waveform_apply_current(chip_id, channel, wf_id, actual_ua);
 }
 

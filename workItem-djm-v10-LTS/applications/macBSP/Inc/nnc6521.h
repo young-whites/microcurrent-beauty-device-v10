@@ -197,6 +197,12 @@ void nnc6521_scd_init(uint8_t chip_id,
 void nnc6521_analog_enable(uint8_t chip_id, uint8_t channel);
 
 /**
+ * @brief  Disable analog output stage (VDAC + driver amplifier) for a channel.
+ *         Call to fully cut output current when stopping waveform.
+ */
+void nnc6521_analog_disable(uint8_t chip_id, uint8_t channel);
+
+/**
  * @brief  Enable or disable waveform generator on a channel.
  */
 void nnc6521_awg_enable_disable(uint8_t chip_id,
