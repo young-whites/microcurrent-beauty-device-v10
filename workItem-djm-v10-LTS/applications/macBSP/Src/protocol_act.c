@@ -131,6 +131,11 @@ static void handle_stop_output(int handle_idx)
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
 
+    rt_kprintf("[STOP] chip=%d ANA_EN_1=0x%02X ANA_EN_2=0x%02X\n",
+               chip_id,
+               nnc6521_read_reg(chip_id, 0x41),
+               nnc6521_read_reg(chip_id, 0x42));
+
     if (handle_idx <= 1) {
         bsp_boost_1_enable(0);
     } else {
@@ -160,10 +165,20 @@ static void handle_apply_output(int handle_idx)
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
 
+    rt_kprintf("[APPLY] chip=%d target_ch=%d wf=%d cur=%u uA\n",
+               chip_id, channel, wf_id, actual_ua);
+    rt_kprintf("[APPLY] ANA_EN_1=0x%02X ANA_EN_2=0x%02X\n",
+               nnc6521_read_reg(chip_id, 0x41),
+               nnc6521_read_reg(chip_id, 0x42));
+
     /* Step 2: Enable ONLY the target channel */
     nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);
     nnc6521_analog_enable(chip_id, channel);
     waveform_apply_current(chip_id, channel, wf_id, actual_ua);
+
+    rt_kprintf("[APPLY] After enable: ANA_EN_1=0x%02X ANA_EN_2=0x%02X\n",
+               nnc6521_read_reg(chip_id, 0x41),
+               nnc6521_read_reg(chip_id, 0x42));
 }
 
 /* ============================================================================
