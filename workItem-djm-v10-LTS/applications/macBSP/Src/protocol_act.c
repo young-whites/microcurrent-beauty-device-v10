@@ -282,7 +282,7 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
 
 /**
  * @brief  Handle 0x03: Temperature control.
- *         para[0] = target temperature (0~41C, 0=off)
+ *         para[0] = temperature percent (0~100, 0=off, 1~100 maps to 20~41C)
  *         para[1] = target handle ID (0x0A/0x0B)
  */
 static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
@@ -292,13 +292,13 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    uint8_t temperature = params[0];
+    uint8_t percent = params[0];
     uint8_t handle_id = params[1];
 
-    rt_kprintf("[PROTO] Temp cmd: temp=%u, handle=0x%02X, current=0x%02X\n",
-               temperature, handle_id, g_dev_state.current_handle);
+    rt_kprintf("[PROTO] Temp cmd: percent=%u, handle=0x%02X, current=0x%02X\n",
+               percent, handle_id, g_dev_state.current_handle);
 
-    if (temperature > 41) {
+    if (percent > 100) {
         protocol_send_error(FUNC_TEMP_CTRL, ERR_PARAM);
         return;
     }
@@ -317,7 +317,7 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    g_dev_state.handle[hi].temperature = temperature;
+    g_dev_state.handle[hi].temperature = percent;
 
     /* Get PID index for this handle */
     int8_t pid_idx = s_handle_to_pid[hi];
@@ -333,14 +333,22 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
     uint8_t other_pid = (pid_idx == TEMP_PID_LARGE) ? TEMP_PID_SMALL : TEMP_PID_LARGE;
     temp_pid_set_target(other_pid, 0);
 
-    /* Set PID target for this handle */
-    temp_pid_set_target(pid_idx, (float)temperature);
+    /* Map percent to temperature */
+    float target_temp;
+    if (percent == 0) {
+        target_temp = 0.0f;  /* Disable heating */
+    } else {
+        target_temp = 20.0f + (float)(percent - 1) * (41.0f - 20.0f) / 99.0f;
+    }
 
-    rt_kprintf("[PROTO] Temp set: handle %c = %u C, PID[%d] target=%.1f, enabled=%d\n",
-               'A' + hi, temperature, pid_idx, (float)temperature,
+    /* Set PID target for this handle */
+    temp_pid_set_target(pid_idx, target_temp);
+
+    rt_kprintf("[PROTO] Temp set: handle %c = %u%% -> %.1f C, PID[%d] enabled=%d\n",
+               'A' + hi, percent, target_temp, pid_idx,
                temp_pid_is_enabled(pid_idx));
 
-    uint8_t ack_params[2] = { temperature, handle_id };
+    uint8_t ack_params[2] = { percent, handle_id };
     protocol_send_ack(FUNC_TEMP_CTRL, ack_params, 2);
 }
 
