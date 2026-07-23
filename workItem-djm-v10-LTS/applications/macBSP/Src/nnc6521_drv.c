@@ -172,7 +172,7 @@ void nnc6521_preloaded_waveform(uint8_t chip_id,
     wf.WG_DRV_CONFIG_REG0.bits.negative_enable = 1;
     wf.WG_DRV_CONFIG_REG0.bits.silent_enable = 1;
     wf.WG_DRV_CONFIG_REG0.bits.sourceB_enable = 1;
-    wf.WG_DRV_CONFIG_REG0.bits.multi_electrode = 1;
+    wf.WG_DRV_CONFIG_REG0.bits.multi_electrode = 0;
     wf.WG_DRV_CONFIG_REG0.bits.continue_repeat = 1;
     wf.WG_DRIVE_REG_CTRL2.bits.out_pos = u8_CI;
     wf.WG_DRV_SILENT_CLK.value = u32_Silent_Time;
@@ -219,7 +219,7 @@ void nnc6521_customized_waveform(uint8_t chip_id,
     wf.WG_DRV_CONFIG_REG0.bits.negative_enable = 1;
     wf.WG_DRV_CONFIG_REG0.bits.silent_enable = 1;
     wf.WG_DRV_CONFIG_REG0.bits.sourceB_enable = 1;
-    wf.WG_DRV_CONFIG_REG0.bits.multi_electrode = 1;
+    wf.WG_DRV_CONFIG_REG0.bits.multi_electrode = 0;
     wf.WG_DRV_CONFIG_REG0.bits.continue_repeat = 1;
     wf.WG_DRV_SILENT_CLK.value = u32_Silent_Time;
     wf.WG_DRV_HALF_WAVE_CLK_PNT.value = u32_Positive_Interval;
@@ -251,7 +251,7 @@ void nnc6521_amplitude_modulation(uint8_t chip_id,
     wf.WG_DRV_CONFIG_REG0.bits.negative_enable = 0;
     wf.WG_DRV_CONFIG_REG0.bits.silent_enable = 1;
     wf.WG_DRV_CONFIG_REG0.bits.sourceB_enable = 1;
-    wf.WG_DRV_CONFIG_REG0.bits.multi_electrode = 1;
+    wf.WG_DRV_CONFIG_REG0.bits.multi_electrode = 0;
     wf.WG_DRV_CONFIG_REG0.bits.alternating_pos = 1;
     wf.WG_DRV_SILENT_CLK.value = u32_Silent_Time;
     wf.WG_DRV_HALF_WAVE_CLK_PNT.value = u16_Interval;
