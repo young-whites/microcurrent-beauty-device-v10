@@ -278,8 +278,21 @@ static void pid_compute(uint8_t pid_idx)
     /* ---- Proportional term ---- */
     float p_term = pid->kp * error;
 
-    /* ---- Integral term (with anti-windup) ---- */
-    pid->integral += pid->ki * error;
+    /* ---- Integral term (conditional anti-windup) ---- */
+    /* Conditional integration (anti-windup):
+     * Only integrate when:
+     *   1. Output is not saturated, OR
+     *   2. Error would reduce saturation (i.e., integral would wind back) */
+    /* Pre-calculate output for saturation check */
+    float output_pre = p_term + pid->integral + pid->kd * (pid->prev_measurement - pid->current_temp);
+    uint8_t output_saturated_high = (output_pre >= TEMP_PID_OUT_MAX);
+    uint8_t output_saturated_low  = (output_pre <= TEMP_PID_OUT_MIN);
+    uint8_t integrate = 1;
+    if (output_saturated_high && error > 0) integrate = 0;  /* Saturated high, error positive → skip */
+    if (output_saturated_low  && error < 0) integrate = 0;  /* Saturated low, error negative → skip */
+    if (integrate) {
+        pid->integral += pid->ki * error;
+    }
     if (pid->integral > TEMP_PID_I_MAX) pid->integral = TEMP_PID_I_MAX;
     if (pid->integral < TEMP_PID_I_MIN) pid->integral = TEMP_PID_I_MIN;
     float i_term = pid->integral;
@@ -294,11 +307,39 @@ static void pid_compute(uint8_t pid_idx)
     if (output > TEMP_PID_OUT_MAX) output = TEMP_PID_OUT_MAX;
     if (output < TEMP_PID_OUT_MIN) output = TEMP_PID_OUT_MIN;
 
-    /* If current temp significantly exceeds target, force output to 0 */
-    if (pid->current_temp > pid->target_temp + 1.0f) {
-        output = 0;
-        /* Wind back integral to prevent re-overshoot */
-        pid->integral *= 0.95f;
+    /* ---- Look-ahead power limiting (anti-overshoot) ---- */
+    /* When approaching target, reduce max allowed power proportionally.
+     * This accounts for thermal inertia - heater element stays hot after power off. */
+    {
+        float approach_gap = pid->target_temp - pid->current_temp;
+        /* Start limiting when within 3.0°C of target */
+        if (approach_gap > 0 && approach_gap < 3.0f) {
+            /* Linear ramp: 3.0°C away = 100% allowed, 0.0°C away = 20% allowed */
+            float min_power_near_target = 20.0f;  /* Min power at target temp */
+            float max_allowed = min_power_near_target +
+                                (100.0f - min_power_near_target) * (approach_gap / 3.0f);
+            if (output > max_allowed) {
+                output = max_allowed;
+            }
+        }
+        /* When at or above target, force minimum power to 0 (heater off) */
+        if (approach_gap <= 0) {
+            output = 0;
+        }
+    }
+
+    /* ---- Enhanced integral decay on overshoot ---- */
+    /* When temperature exceeds target, actively decay integral */
+    if (pid->current_temp >= pid->target_temp) {
+        /* Decay integral proportionally to overshoot amount */
+        float overshoot = pid->current_temp - pid->target_temp;
+        float decay_rate = 0.9f - (overshoot * 0.05f);  /* More overshoot = faster decay */
+        if (decay_rate < 0.5f) decay_rate = 0.5f;
+        pid->integral *= decay_rate;
+        /* Force output to 0 when above target */
+        if (overshoot > 0.5f) {
+            output = 0;
+        }
     }
 
     pid->output = output;
