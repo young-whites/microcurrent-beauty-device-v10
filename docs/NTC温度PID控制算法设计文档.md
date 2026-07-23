@@ -1,7 +1,7 @@
 # NTC 温度传感器 PID 控制算法设计文档
 
-> **版本**: V1.3  
-> **日期**: 2026-07-14  
+> **版本**: V1.4  
+> **日期**: 2026-07-23  
 > **适用平台**: STM32F103RCT6 / RT-Thread v5.1.0 / STM32 HAL  
 > **项目**: DJM-V10 微电流美容仪
 
@@ -14,6 +14,7 @@
 | V1.0 | 2026-06-29 | — | 初始版本：NTC 温度采集、PID 算法、软件 PWM 加热控制 |
 | V1.1 | 2026-07-08 | — | 新增 NTC 查表+线性插值算法，基于厂商 B 值表（-50~125°C，176 点），通过 NTC_USE_LOOKUP_TABLE 宏切换查表/方程双模式 |
 | V1.2 | 2026-07-14 | — | ADC 采集改为 RT-Thread ADC 设备框架；新增手柄-温控映射表；协议层接入 PID 控温；新增初始化序列；新增温控互斥与安全保护说明 |
+| V1.4 | 2026-07-23 | — | 温度控制从直接温度值改为百分比(0~100)，映射20~41°C；更新协议层集成说明 |
 | V1.3 | 2026-07-14 | — | 新增 PID 参数自整定章节（继电反馈法、Ziegler-Nichols 公式、自整定流程、安全保护） |
 
 ---
@@ -330,12 +331,11 @@ APP 发送温度设定指令后，协议层调用 PID 控制器：
 
 ```c
 // handle_temp_ctrl() 中:
-g_dev_state.handle[hi].temperature = temperature;
-temp_pid_set_target(hi, (float)temperature);
+// percent=0 → 禁用 PID，关闭加热
+// percent=1~100 → 映射到 20~41°C 设置 PID 目标温度
+float target_temp = 20.0f + (float)(percent - 1) * 21.0f / 99.0f;
+temp_pid_set_target(hi, target_temp);
 ```
-
-- `temperature = 0` → 禁用 PID，关闭加热
-- `temperature = 1~41` → 设置 PID 目标温度，启用控制
 
 ---
 
@@ -417,7 +417,7 @@ nnc6521_init(CHIP_2);    // NNC6521 芯片 2 初始化
 [NTC] Sensor module initialized, channels=2
 [PID] Temperature PID controller initialized, instances=2
 [PID] Kp=8.0 Ki=0.150 Kd=3.0, CtrlPeriod=100ms, PWMPeriod=1000ms
-[PROTO] Temp set: handle A = 37 C, PID enabled
+[PROTO] Temp set: handle A = 81% (37.0 C), PID enabled
 [PID] Handle A target: 37.0 C, enabled=1
 ```
 
@@ -426,7 +426,7 @@ nnc6521_init(CHIP_2);    // NNC6521 芯片 2 初始化
 | 参数 | 获取方式 | 正常范围 |
 |------|---------|---------|
 | 当前温度 | `ntc_sensor_get_temperature(ch)` | 20~45℃ |
-| 目标温度 | `temp_pid_get_target(idx)` | 0~41℃ |
+| 目标温度 | `temp_pid_get_target(idx)` | 20~41℃ (由百分比映射) |
 | PID 输出 | `temp_pid_get_output(idx)` | 0~100% |
 | 传感器状态 | `temp_pid_sensor_fault(idx)` | 0=正常 |
 | NTC 电阻 | `ntc_sensor_get(ch)->resistance` | 30k~200kΩ |

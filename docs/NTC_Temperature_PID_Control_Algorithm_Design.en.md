@@ -1,7 +1,7 @@
 # NTC Temperature Sensor PID Control Algorithm Design Document
 
-> **Version**: V1.3  
-> **Date**: 2026-07-14  
+> **Version**: V1.4  
+> **Date**: 2026-07-23  
 > **Platform**: STM32F103RCT6 / RT-Thread v5.1.0 / STM32 HAL  
 > **Project**: DJM-V10 Microcurrent Beauty Device
 
@@ -14,6 +14,7 @@
 | V1.0 | 2026-06-29 | — | Initial version: NTC temperature acquisition, PID algorithm, software PWM heating control |
 | V1.1 | 2026-07-08 | — | Added NTC lookup table + linear interpolation algorithm based on manufacturer B-value table (-50~125°C, 176 points), dual-mode switch via NTC_USE_LOOKUP_TABLE macro |
 | V1.2 | 2026-07-14 | — | ADC acquisition migrated to RT-Thread ADC device framework; added handle-temperature mapping; protocol layer integrated PID temperature control; added initialization sequence; added temperature control mutex and safety protection descriptions |
+| V1.4 | 2026-07-23 | — | Temperature control changed from direct value to percent (0~100), mapping 20~41°C; updated protocol layer integration description |
 | V1.3 | 2026-07-14 | — | Added PID parameter auto-tuning chapter (relay feedback method, Ziegler-Nichols formula, auto-tuning flow, safety protection) |
 
 ---
@@ -330,12 +331,11 @@ After receiving the temperature setting command, the protocol layer calls the PI
 
 ```c
 // In handle_temp_ctrl():
-g_dev_state.handle[hi].temperature = temperature;
-temp_pid_set_target(hi, (float)temperature);
+// percent=0 → Disable PID, turn off heating
+// percent=1~100 → Map to 20~41°C and set PID target temperature
+float target_temp = 20.0f + (float)(percent - 1) * 21.0f / 99.0f;
+temp_pid_set_target(hi, target_temp);
 ```
-
-- `temperature = 0` → Disable PID, turn off heating
-- `temperature = 1–41` → Set PID target temperature, enable control
 
 ---
 
@@ -417,7 +417,7 @@ Debug information via UART2 (115200bps):
 [NTC] Sensor module initialized, channels=2
 [PID] Temperature PID controller initialized, instances=2
 [PID] Kp=8.0 Ki=0.150 Kd=3.0, CtrlPeriod=100ms, PWMPeriod=1000ms
-[PROTO] Temp set: handle A = 37 C, PID enabled
+[PROTO] Temp set: handle A = 81% (37.0 C), PID enabled
 [PID] Handle A target: 37.0 C, enabled=1
 ```
 
@@ -426,7 +426,7 @@ Debug information via UART2 (115200bps):
 | Parameter | Access Method | Normal Range |
 |-----------|---------------|--------------|
 | Current Temperature | `ntc_sensor_get_temperature(ch)` | 20–45°C |
-| Target Temperature | `temp_pid_get_target(idx)` | 0–41°C |
+| Target Temperature | `temp_pid_get_target(idx)` | 20–41°C (mapped from percent) |
 | PID Output | `temp_pid_get_output(idx)` | 0–100% |
 | Sensor Status | `temp_pid_sensor_fault(idx)` | 0=OK |
 | NTC Resistance | `ntc_sensor_get(ch)->resistance` | 30k–200kΩ |
