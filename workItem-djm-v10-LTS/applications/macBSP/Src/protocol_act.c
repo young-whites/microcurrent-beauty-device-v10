@@ -259,6 +259,14 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         return;
     }
 
+    /* Mutual exclusion: only allow current control on the active handle */
+    if (handle_id != g_dev_state.current_handle) {
+        rt_kprintf("[PROTO] Current rejected: handle %c is not active (current=%c)\n",
+                   'A' + hi, 'A' + protocol_handle_index(g_dev_state.current_handle));
+        protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
+        return;
+    }
+
     /* Lookup actual current from level table (μA), A handle uses dedicated table */
     uint8_t wf_id = g_dev_state.waveform_id;
     const uint32_t *level_map = (hi == 0) ? g_current_level_map_a[wf_id - 1]
