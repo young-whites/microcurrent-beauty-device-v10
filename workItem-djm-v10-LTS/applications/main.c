@@ -23,8 +23,10 @@
 #include "dac7311.h"
 #include "rtt_system_work.h"
 
-/* Firmware version - update with each commit */
-#define FW_VERSION  "136340c"
+/* Firmware version - auto-generated from git commit hash at build time */
+#ifndef FW_VERSION
+#define FW_VERSION  "unknown"
+#endif
 
 
 /**

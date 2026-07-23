@@ -1,5 +1,6 @@
 import os
 import sys
+import subprocess
 import rtconfig
 
 RTT_ROOT = os.path.normpath(os.getcwd() + '/rt-thread')
@@ -13,6 +14,15 @@ except Exception as e:
     print(RTT_ROOT)
     sys.exit(-1)
 
+# Auto-detect git commit hash for firmware version
+try:
+    GIT_HASH = subprocess.check_output(
+        ['git', 'rev-parse', '--short', 'HEAD'],
+        stderr=subprocess.DEVNULL
+    ).decode('ascii').strip()
+except Exception:
+    GIT_HASH = 'unknown'
+
 TARGET = 'rt-thread.elf'
 
 DefaultEnvironment(tools=[])
@@ -24,7 +34,7 @@ env = Environment(tools = ['mingw'],
     LINK = rtconfig.LINK, LINKFLAGS = rtconfig.LFLAGS)
 env.PrependENVPath('PATH', rtconfig.EXEC_PATH)
 
-env.AppendUnique(CPPDEFINES = [])
+env.AppendUnique(CPPDEFINES = ['FW_VERSION=\\"%s\\"' % GIT_HASH])
 
 Export('RTT_ROOT')
 Export('rtconfig')
