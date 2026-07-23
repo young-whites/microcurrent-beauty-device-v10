@@ -313,11 +313,11 @@ static void pid_compute(uint8_t pid_idx)
     {
         float approach_gap = pid->target_temp - pid->current_temp;
         /* Start limiting when within 3.0°C of target */
-        if (approach_gap > 0 && approach_gap < 3.0f) {
-            /* Linear ramp: 3.0°C away = 100% allowed, 0.0°C away = 20% allowed */
+        if (approach_gap > 0 && approach_gap < 2.0f) {
+            /* Linear ramp: 2.0°C away = 100% allowed, 0.0°C away = 20% allowed */
             float min_power_near_target = 20.0f;  /* Min power at target temp */
             float max_allowed = min_power_near_target +
-                                (100.0f - min_power_near_target) * (approach_gap / 3.0f);
+                                (100.0f - min_power_near_target) * (approach_gap / 2.0f);
             if (output > max_allowed) {
                 output = max_allowed;
             }
