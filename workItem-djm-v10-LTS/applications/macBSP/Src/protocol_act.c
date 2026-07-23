@@ -160,15 +160,15 @@ static void handle_apply_output(int handle_idx)
         return;
     }
 
-    /* Nuclear option: disable ALL channels on this chip first */
-    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Global off */
-    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
-    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH1, 0);
-    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
-    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
+    /* Zero the OTHER channel's VDAC to prevent cross-channel output.
+     * multi_electrode=1 links both channels, so we must explicitly
+     * zero the unused channel's current. */
+    uint8_t other_ch = (channel == WAVEFORM_GEN_CH0) ? WAVEFORM_GEN_CH1 : WAVEFORM_GEN_CH0;
+    nnc6521_awg_enable_disable(chip_id, other_ch, 0);
+    nnc6521_analog_disable(chip_id, other_ch);
 
-    /* Now enable ONLY the target channel */
-    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);  /* Global on */
+    /* Enable global drive and target channel analog */
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);
     nnc6521_analog_enable(chip_id, channel);
     waveform_apply_current(chip_id, channel, wf_id, actual_ua);
 }
