@@ -184,15 +184,15 @@ void dac7311_write_raw_frame(uint16_t frame)
 }
 
 /* ============================================================================
- *  Pump Speed Control (linear: 0%=0V, 100%=5.0V)
+ *  Pump Speed Control (linear: 0%=0V, 100%=3.5V)
  * ===========================================================================*/
 
 void dac7311_set_pump_speed(uint8_t percent)
 {
     if (percent > 100) percent = 100;
 
-    /* Linear mapping: 0% -> 0V, 100% -> 5.0V */
-    float voltage = DAC7311_VREF * (float)percent / 100.0f;
+    /* Linear mapping: 0% -> 0V, 100% -> 3.5V */
+    float voltage = PUMP_SAT_MAX_V * (float)percent / 100.0f;
 
     dac7311_set_voltage(voltage);
 }
