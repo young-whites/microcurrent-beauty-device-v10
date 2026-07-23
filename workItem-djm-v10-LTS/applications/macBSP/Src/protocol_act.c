@@ -124,8 +124,12 @@ static void handle_stop_output(int handle_idx)
 {
     uint8_t chip_id = handle_to_chip(handle_idx);
     uint8_t channel = handle_to_channel(handle_idx);
+
+    /* Disable global drive enable first - prevents any AWG re-enable */
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);
+
     nnc6521_awg_enable_disable(chip_id, channel, 0);
-    nnc6521_analog_disable(chip_id, channel);  /* Fully cut analog output */
+    nnc6521_analog_disable(chip_id, channel);  /* Fully cut analog output + zero VDAC */
 
     /* Disable 54V boost for the handle's chip */
     if (handle_idx <= 1) {
@@ -134,7 +138,7 @@ static void handle_stop_output(int handle_idx)
         bsp_boost_2_enable(0);  /* Handle C -> CHIP_2 */
     }
 
-    rt_kprintf("[PROTO] Waveform stopped, analog+boost disabled on chip %d ch %d\n", chip_id, channel);
+    rt_kprintf("[PROTO] Waveform stopped, global+analog+boost disabled on chip %d ch %d\n", chip_id, channel);
 }
 
 /**
@@ -156,7 +160,8 @@ static void handle_apply_output(int handle_idx)
         return;
     }
 
-    /* Re-enable analog output stage before applying waveform */
+    /* Re-enable analog output stage and global drive before applying waveform */
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);  /* Global drive enable */
     nnc6521_analog_enable(chip_id, channel);
     waveform_apply_current(chip_id, channel, wf_id, actual_ua);
 }
@@ -563,6 +568,7 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
 
         /* Stop old waveform, configure new one at target current */
         nnc6521_awg_enable_disable(chip_id, channel, 0);
+        nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);  /* Re-enable global drive */
         nnc6521_analog_enable(chip_id, channel);
         waveform_apply_current(chip_id, channel, waveform_id, target_ua);
     }
@@ -706,11 +712,16 @@ void protocol_stop_waveform(void)
     /* Stop temperature periodic report */
     protocol_temp_report_stop();
 
-    /* Disable AWG on all channels of both chips */
+    /* Disable global drive + AWG + analog on all channels of both chips */
+    nnc6521_write_reg(NNC6521_CHIP_1, WAVEGEN_GLOBAL_REG_0, 0x00);
+    nnc6521_write_reg(NNC6521_CHIP_2, WAVEGEN_GLOBAL_REG_0, 0x00);
     nnc6521_awg_enable_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0, 0);
     nnc6521_awg_enable_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1, 0);
     nnc6521_awg_enable_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0, 0);
-    rt_kprintf("[PROTO] All waveform output stopped\n");
+    nnc6521_analog_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0);
+    nnc6521_analog_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1);
+    nnc6521_analog_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);
+    rt_kprintf("[PROTO] All waveform output stopped (global+AWG+analog)\n");
 }
 
 /**
@@ -723,6 +734,7 @@ void protocol_start_waveform(void)
     if (hi >= 0 && g_dev_state.is_running) {
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
+        nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);  /* Global drive enable */
         nnc6521_analog_enable(chip_id, channel);
         waveform_apply_current(chip_id, channel,
                                g_dev_state.waveform_id,
