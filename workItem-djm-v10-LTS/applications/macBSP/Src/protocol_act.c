@@ -563,6 +563,7 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
 
         /* Stop old waveform, configure new one at target current */
         nnc6521_awg_enable_disable(chip_id, channel, 0);
+        nnc6521_analog_enable(chip_id, channel);
         waveform_apply_current(chip_id, channel, waveform_id, target_ua);
     }
 
@@ -722,6 +723,7 @@ void protocol_start_waveform(void)
     if (hi >= 0 && g_dev_state.is_running) {
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
+        nnc6521_analog_enable(chip_id, channel);
         waveform_apply_current(chip_id, channel,
                                g_dev_state.waveform_id,
                                g_dev_state.handle[hi].current_ma);
