@@ -120,11 +120,21 @@ void nnc6521_analog_enable(uint8_t chip_id, uint8_t channel)
 void nnc6521_analog_disable(uint8_t chip_id, uint8_t channel)
 {
     if (channel == WAVEFORM_GEN_CH0) {
-        /* CH1: Disable all analog output components (AMP+CSAMP+COMP+IDAC+VDAC+STIMU) */
+        /* CH1: Disable all analog output components */
         nnc6521_write_reg(chip_id, ANA_ENABLE_REG_1_ADDR, 0x00);
+        /* CH1: Zero VDAC output (force 0V) */
+        nnc6521_write_reg(chip_id, ANA_GEN_REG_2_ADDR, 0x00);  /* VDAC_DIN_CH1_LSB */
+        uint8_t reg3 = nnc6521_read_reg(chip_id, ANA_GEN_REG_3_ADDR);
+        reg3 &= 0xFC;  /* Clear bits [1:0] = VDAC_DIN_CH1_MSB */
+        nnc6521_write_reg(chip_id, ANA_GEN_REG_3_ADDR, reg3);
     } else {
         /* CH2: Disable all analog output components */
         nnc6521_write_reg(chip_id, ANA_ENABLE_REG_2_ADDR, 0x00);
+        /* CH2: Zero VDAC output (force 0V) */
+        nnc6521_write_reg(chip_id, ANA_GEN_REG_4_ADDR, 0x00);  /* VDAC_DIN_CH2_LSB */
+        uint8_t reg5 = nnc6521_read_reg(chip_id, ANA_GEN_REG_5_ADDR);
+        reg5 &= 0xFC;  /* Clear bits [1:0] = VDAC_DIN_CH2_MSB */
+        nnc6521_write_reg(chip_id, ANA_GEN_REG_5_ADDR, reg5);
     }
 }
 
