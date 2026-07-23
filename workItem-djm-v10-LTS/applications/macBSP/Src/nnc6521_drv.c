@@ -119,22 +119,12 @@ void nnc6521_analog_enable(uint8_t chip_id, uint8_t channel)
  * ===========================================================================*/
 void nnc6521_analog_disable(uint8_t chip_id, uint8_t channel)
 {
-    uint8_t data;
-
     if (channel == WAVEFORM_GEN_CH0) {
-        /* CH1: Disable VDAC + comparator + driver amplifier */
-        data = nnc6521_read_reg(chip_id, ANA_ENABLE_REG_1_ADDR);
-        data &= ~(1 << 4);  /* VDAC_EN_CH1 */
-        data &= ~(1 << 2);  /* COMP_EN_CH1 */
-        data &= ~(1 << 1);  /* DRIVERA_CSAMP_EN_CH1 */
-        nnc6521_write_reg(chip_id, ANA_ENABLE_REG_1_ADDR, data);
+        /* CH1: Disable all analog output components (AMP+CSAMP+COMP+IDAC+VDAC+STIMU) */
+        nnc6521_write_reg(chip_id, ANA_ENABLE_REG_1_ADDR, 0x00);
     } else {
-        /* CH2: Disable VDAC + comparator + driver amplifier */
-        data = nnc6521_read_reg(chip_id, ANA_ENABLE_REG_2_ADDR);
-        data &= ~(1 << 4);  /* VDAC_EN_CH2 */
-        data &= ~(1 << 2);  /* COMP_EN_CH2 */
-        data &= ~(1 << 1);  /* DRIVERA_CSAMP_EN_CH2 */
-        nnc6521_write_reg(chip_id, ANA_ENABLE_REG_2_ADDR, data);
+        /* CH2: Disable all analog output components */
+        nnc6521_write_reg(chip_id, ANA_ENABLE_REG_2_ADDR, 0x00);
     }
 }
 
