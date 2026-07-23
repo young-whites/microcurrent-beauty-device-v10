@@ -123,51 +123,44 @@ void protocol_temp_report_stop(void)
 static void handle_stop_output(int handle_idx)
 {
     uint8_t chip_id = handle_to_chip(handle_idx);
-    uint8_t channel = handle_to_channel(handle_idx);
 
-    /* Disable global drive enable first - prevents any AWG re-enable */
+    /* Full chip shutdown: zero everything on both channels */
     nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);
+    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
+    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH1, 0);
+    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
+    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
 
-    nnc6521_awg_enable_disable(chip_id, channel, 0);
-    nnc6521_analog_disable(chip_id, channel);  /* Fully cut analog output + zero VDAC */
-
-    /* Disable 54V boost for the handle's chip */
     if (handle_idx <= 1) {
-        bsp_boost_1_enable(0);  /* Handle A/B -> CHIP_1 */
+        bsp_boost_1_enable(0);
     } else {
-        bsp_boost_2_enable(0);  /* Handle C -> CHIP_2 */
+        bsp_boost_2_enable(0);
     }
 
-    rt_kprintf("[PROTO] Waveform stopped, global+analog+boost disabled on chip %d ch %d\n", chip_id, channel);
+    rt_kprintf("[PROTO] Full stop: chip %d all channels off + boost off\n", chip_id);
 }
 
-/**
- * @brief  Apply waveform output on the chip associated with the given handle.
- *         Uses current device state (waveform_id, current_ma in μA).
- */
 static void handle_apply_output(int handle_idx)
 {
     uint8_t chip_id = handle_to_chip(handle_idx);
     uint8_t wf_id   = g_dev_state.waveform_id;
     uint32_t actual_ua = g_dev_state.handle[handle_idx].current_ma;
-
     uint8_t channel = handle_to_channel(handle_idx);
 
     if (actual_ua == 0) {
         nnc6521_awg_enable_disable(chip_id, channel, 0);
         nnc6521_analog_disable(chip_id, channel);
-        rt_kprintf("[PROTO] Current 0 uA, output disabled on chip %d ch %d\n", chip_id, channel);
         return;
     }
 
-    /* Zero the OTHER channel's VDAC to prevent cross-channel output.
-     * multi_electrode=1 links both channels, so we must explicitly
-     * zero the unused channel's current. */
-    uint8_t other_ch = (channel == WAVEFORM_GEN_CH0) ? WAVEFORM_GEN_CH1 : WAVEFORM_GEN_CH0;
-    nnc6521_awg_enable_disable(chip_id, other_ch, 0);
-    nnc6521_analog_disable(chip_id, other_ch);
+    /* Step 1: Shut down EVERYTHING on this chip */
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);
+    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
+    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH1, 0);
+    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
+    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
 
-    /* Enable global drive and target channel analog */
+    /* Step 2: Enable ONLY the target channel */
     nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x01);
     nnc6521_analog_enable(chip_id, channel);
     waveform_apply_current(chip_id, channel, wf_id, actual_ua);
