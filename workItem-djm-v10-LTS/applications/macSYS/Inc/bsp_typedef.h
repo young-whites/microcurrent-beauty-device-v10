@@ -40,6 +40,7 @@ typedef struct {
     volatile rt_uint8_t   power_shutdown_request;   // 1 = shutdown requested by short press
     volatile rt_uint8_t   power_shutdown_confirmed; // 1 = host confirmed shutdown
     volatile rt_uint8_t   power_shutdown_denied;    // 1 = host denied shutdown request
+    volatile rt_uint8_t   power_shutdown_direct;    // 1 = host direct shutdown (0x0D), no confirm needed
 }FlagStruct;
 extern FlagStruct Flag;
 

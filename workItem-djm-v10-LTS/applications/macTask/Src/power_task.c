@@ -156,8 +156,15 @@ static void power_thread_entry(void *parameter)
             break;
 
         case POWER_STATE_ON:
+            /* Check for direct shutdown command from host (0x0D) */
+            if (Flag.power_shutdown_direct) {
+                Flag.power_shutdown_direct = 0;
+                s_power_state = POWER_STATE_SHUTTING_DOWN;
+                rt_kprintf("[PWR] Direct shutdown from host\n");
+                power_do_shutdown();
+            }
             /* Check for shutdown request from KEY_Scan() */
-            if (Flag.power_shutdown_request) {
+            else if (Flag.power_shutdown_request) {
                 Flag.power_shutdown_request = 0;
                 Flag.power_shutdown_confirmed = 0;
                 Flag.power_shutdown_denied = 0;
