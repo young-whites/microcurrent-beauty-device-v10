@@ -712,13 +712,6 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
                 uint8_t ack_params[1] = { para0 };
                 protocol_send_ack(FUNC_SHUTDOWN_REQ, ack_params, 1);
             } break;
-            case FUNC_SHUTDOWN_CMD:
-            {
-                /* Direct shutdown from host - no confirmation needed */
-                rt_kprintf("[PROTO] Direct shutdown command received\n");
-                protocol_send_ack(FUNC_SHUTDOWN_CMD, RT_NULL, 0);
-                Flag.power_shutdown_direct = 1;
-            } break;
             default:
                 rt_kprintf("[PROTO] Unsupported function code: 0x%02X\n", func);
                 protocol_send_error(func, ERR_UNSUPPORTED);
