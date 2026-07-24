@@ -372,9 +372,18 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
     /* Set PID target for this handle */
     temp_pid_set_target(pid_idx, target_temp);
 
-    rt_kprintf("[PROTO] Temp set: handle %c = %u%% -> %.1f C, PID[%d] enabled=%d\n",
+    /* If treatment is already running and target is valid, enable PID now.
+     * This handles the case: switch handle -> start -> set temperature. */
+    if (g_dev_state.is_running && target_temp > 0) {
+        temp_pid_set_enable(pid_idx, 1);
+    } else if (target_temp <= 0 && g_dev_state.is_running) {
+        /* User set temp to 0 while running: disable PID heating */
+        temp_pid_set_enable(pid_idx, 0);
+    }
+
+    rt_kprintf("[PROTO] Temp set: handle %c = %u%% -> %.1f C, PID[%d] enabled=%d, running=%d\n",
                'A' + hi, percent, target_temp, pid_idx,
-               temp_pid_is_enabled(pid_idx));
+               temp_pid_is_enabled(pid_idx), g_dev_state.is_running);
 
     uint8_t ack_params[2] = { percent, handle_id };
     protocol_send_ack(FUNC_TEMP_CTRL, ack_params, 2);
