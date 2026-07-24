@@ -312,12 +312,13 @@ static void pid_compute(uint8_t pid_idx)
      * This accounts for thermal inertia - heater element stays hot after power off. */
     {
         float approach_gap = pid->target_temp - pid->current_temp;
-        /* Start limiting when within 3.0°C of target */
-        if (approach_gap > 0 && approach_gap < 2.0f) {
-            /* Linear ramp: 2.0°C away = 100% allowed, 0.0°C away = 20% allowed */
+        /* Start limiting threshold: handle B=1.0°C, handle A=2.0°C */
+        float approach_limit = (pid_idx == TEMP_PID_LARGE) ? 1.0f : 2.0f;
+        if (approach_gap > 0 && approach_gap < approach_limit) {
+            /* Linear ramp: approach_limit away = 100% allowed, 0.0°C away = 20% allowed */
             float min_power_near_target = 20.0f;  /* Min power at target temp */
             float max_allowed = min_power_near_target +
-                                (100.0f - min_power_near_target) * (approach_gap / 2.0f);
+                                (100.0f - min_power_near_target) * (approach_gap / approach_limit);
             if (output > max_allowed) {
                 output = max_allowed;
             }
