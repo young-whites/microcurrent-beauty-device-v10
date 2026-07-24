@@ -366,7 +366,7 @@ static void handle_temp_ctrl(const uint8_t *params, uint8_t param_len)
     if (percent == 0) {
         target_temp = 0.0f;  /* Disable heating */
     } else {
-        target_temp = 20.0f + (float)(percent - 1) * (41.0f - 20.0f) / 99.0f;
+        target_temp = 20.0f + (float)(percent - 1) * (43.0f - 20.0f) / 99.0f;
     }
 
     /* Set PID target for this handle */
