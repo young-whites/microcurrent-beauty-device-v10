@@ -587,11 +587,16 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
         uint8_t channel = handle_to_channel(hi);
         uint32_t target_ua = g_dev_state.handle[hi].current_ma;
 
-        /* Stop old waveform, configure new one at target current */
-        nnc6521_awg_enable_disable(chip_id, channel, 0);
-        nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
-        nnc6521_analog_enable(chip_id, channel);
-        waveform_apply_current(chip_id, channel, waveform_id, target_ua);
+        /* Only output if current is non-zero (level 0 = no output) */
+        if (target_ua > 0) {
+            /* Stop old waveform, configure new one at target current */
+            nnc6521_awg_enable_disable(chip_id, channel, 0);
+            nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
+            nnc6521_analog_enable(chip_id, channel);
+            waveform_apply_current(chip_id, channel, waveform_id, target_ua);
+        } else {
+            rt_kprintf("[PROTO] Waveform switch skipped: current=0\n");
+        }
     }
 
     rt_kprintf("[PROTO] Waveform selected: #%u\n", waveform_id);
@@ -753,6 +758,11 @@ void protocol_start_waveform(void)
 {
     int hi = protocol_handle_index(g_dev_state.current_handle);
     if (hi >= 0 && g_dev_state.is_running) {
+        uint32_t cur_ua = g_dev_state.handle[hi].current_ma;
+        if (cur_ua == 0) {
+            rt_kprintf("[PROTO] Waveform start skipped: current=0\n");
+            return;
+        }
         uint8_t chip_id = handle_to_chip(hi);
         uint8_t channel = handle_to_channel(hi);
         /* Mutual exclusion: disable the other channel on the same chip */
@@ -763,7 +773,7 @@ void protocol_start_waveform(void)
         nnc6521_analog_enable(chip_id, channel);
         waveform_apply_current(chip_id, channel,
                                g_dev_state.waveform_id,
-                               g_dev_state.handle[hi].current_ma);
+                               cur_ua);
         rt_kprintf("[PROTO] Waveform started on chip %d ch %d\n", chip_id, channel);
     }
 }
