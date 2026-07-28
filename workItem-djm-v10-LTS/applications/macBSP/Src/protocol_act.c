@@ -158,6 +158,14 @@ static void handle_apply_output(int handle_idx)
         return;
     }
 
+    /* Ensure 54V boost is enabled before output (handles 0->non-zero transition) */
+    if (handle_idx <= 1) {
+        bsp_boost_1_enable(1);  /* Handle A/B -> CHIP_1 */
+    } else {
+        bsp_boost_2_enable(1);  /* Handle C -> CHIP_2 */
+    }
+    rt_thread_mdelay(10);  /* Soft-start delay for boost stabilization */
+
     /* Step 1: Shut down EVERYTHING on this chip */
     nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent mode */
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
@@ -444,17 +452,10 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
     }
 
     if (action == 1) {
-        /* Start: enable 54V boost first, wait for stabilization */
-        if (hi <= 1) {
-            bsp_boost_1_enable(1);  /* Handle A/B -> CHIP_1 */
-        } else {
-            bsp_boost_2_enable(1);  /* Handle C -> CHIP_2 */
-        }
-        rt_thread_mdelay(10);  /* Soft-start delay for boost stabilization */
-
         g_dev_state.is_running = 1;
 
-        /* Apply waveform at target current directly */
+        /* Apply waveform: handle_apply_output enables boost if current > 0,
+         * skips boost entirely if current == 0 */
         handle_apply_output(hi);
 
         /* Enable pump (PB10) for handle C */
