@@ -71,9 +71,8 @@ int main(void)
   nnc6521_gpio_init();
   nnc6521_init(NNC6521_CHIP_1);
   nnc6521_init(NNC6521_CHIP_2);
-  nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0);  /* Handle A */
-  nnc6521_analog_enable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1);  /* Handle B */
-  nnc6521_analog_enable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);  /* Handle C */
+  /* Analog enable removed: only enable when treatment starts (handle_apply_output)
+   * to prevent unexpected current output at boot before gear level is set */
 
   /* Initialize DAC7311 for pump speed control (0~5V) */
   dac7311_init();

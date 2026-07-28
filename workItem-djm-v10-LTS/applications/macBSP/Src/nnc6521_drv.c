@@ -77,6 +77,10 @@ void nnc6521_init(uint8_t chip_id)
     nnc6521_write_reg(chip_id, CLK_CTRL_REG_ADDR, 0x00);     /* PCLK div = 1 (2MHz) */
     nnc6521_write_reg(NNC6521_CHIP_1, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
     nnc6521_write_reg(NNC6521_CHIP_2, WAVEGEN_GLOBAL_REG_0, 0x00);
+
+    /* Ensure all analog outputs are OFF after init (prevent OTP residual current) */
+    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
+    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
 }
 
 /* ============================================================================
