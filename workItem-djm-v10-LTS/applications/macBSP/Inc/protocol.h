@@ -129,6 +129,7 @@ typedef struct {
 typedef struct {
     uint8_t current_handle;             /* Current active handle (HANDLE_A/B/C) */
     uint8_t waveform_id;                /* Current waveform selection (1~9) */
+    uint8_t current_level;              /* Global current gear level (0~10, 0=off) - V4.1 */
     uint8_t is_running;                 /* Treatment running flag (0=pause, 1=running) */
     uint8_t aging_mode;                 /* Factory aging mode flag */
     handle_params_t handle[3];          /* Parameters for handle A/B/C (index 0/1/2) */

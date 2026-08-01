@@ -436,6 +436,7 @@ int protocol_init(void)
     rt_memset(&g_dev_state, 0, sizeof(g_dev_state));
     g_dev_state.current_handle = HANDLE_A;  /* Default to handle A */
     g_dev_state.waveform_id    = WAVEFORM_POWER_SMOOTH;  /* Default waveform */
+    g_dev_state.current_level  = 0;  /* V4.1: default current level */
     g_dev_state.is_running     = 0;
     g_dev_state.aging_mode     = 0;
 

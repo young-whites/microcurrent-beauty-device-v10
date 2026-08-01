@@ -1,6 +1,8 @@
 /*
  * Protocol action handlers for DJM-V10
  * Command dispatch, waveform control, treatment start/stop
+ *
+ * V4.1: Current output is global, controlled by treatment start/stop.
  */
 #ifndef __PROTOCOL_ACT_H__
 #define __PROTOCOL_ACT_H__
@@ -14,12 +16,6 @@
  * @param  cmd_len  Length field from the frame (value of buf[0]).
  */
 void protocol_dispatch(uint8_t *buf, uint8_t cmd_len);
-
-/**
- * @brief  Update NNC6521 waveform output based on current device state.
- * @param  handle_idx  Handle index (0~2).
- */
-void protocol_update_current_output(uint8_t handle_idx);
 
 /**
  * @brief  Start NNC6521 waveform output for the active handle.

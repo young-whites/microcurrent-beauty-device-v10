@@ -2,10 +2,10 @@
  * Protocol action handlers for DJM-V10
  * Command dispatch, waveform control, treatment start/stop
  *
- * Hardware mapping:
- *   Handle A (0x0A) -> NNC6521_CHIP_1, CH0
- *   Handle B (0x0B) -> NNC6521_CHIP_1, CH1
- *   Handle C (0x0C) -> NNC6521_CHIP_2, CH0
+ * V4.1: Current output is global (not per-handle).
+ *       Handle switching does NOT stop current/waveform.
+ *       Only treatment start/stop (0x05) and level=0 control current output.
+ *       54V boost (PB1) is global, controlled by treatment start/stop.
  */
 
 #include "protocol_act.h"
@@ -116,41 +116,37 @@ void protocol_temp_report_stop(void)
     rt_kprintf("[PROTO] Temp report stopped\n");
 }
 
-/**
- * @brief  Stop waveform output on the chip associated with the given handle.
- *         Also disables the corresponding 54V boost converter.
- */
 static void handle_stop_output(int handle_idx)
 {
     uint8_t chip_id = handle_to_chip(handle_idx);
 
     /* Full chip shutdown: zero everything on both channels */
-    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH1, 0);
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
 
+    /* V4.1: Boost is global (PB1), controlled by treatment start/stop only.
+     * Do NOT disable boost here - it's handled by handle_start_pause(). */
+
     rt_kprintf("[STOP] chip=%d ANA_EN_1=0x%02X ANA_EN_2=0x%02X\n",
                chip_id,
                nnc6521_read_reg(chip_id, 0x41),
                nnc6521_read_reg(chip_id, 0x42));
-
-    if (handle_idx <= 1) {
-        bsp_boost_1_enable(0);
-    } else {
-        bsp_boost_2_enable(0);
-    }
-
-    rt_kprintf("[PROTO] Full stop: chip %d all channels off + boost off\n", chip_id);
 }
 
 static void handle_apply_output(int handle_idx)
 {
     uint8_t chip_id = handle_to_chip(handle_idx);
     uint8_t wf_id   = g_dev_state.waveform_id;
-    uint32_t actual_ua = g_dev_state.handle[handle_idx].current_ma;
+    uint8_t level   = g_dev_state.current_level;
     uint8_t channel = handle_to_channel(handle_idx);
+
+    /* Lookup actual current from global level table */
+    const uint32_t *level_map = (handle_idx == 0) ? g_current_level_map_a[wf_id - 1]
+                                                   : g_current_level_map_bc[wf_id - 1];
+    uint32_t actual_ua = level_map[level];
 
     if (actual_ua == 0) {
         nnc6521_awg_enable_disable(chip_id, channel, 0);
@@ -158,25 +154,22 @@ static void handle_apply_output(int handle_idx)
         return;
     }
 
-    /* Ensure 54V boost is enabled before output (handles 0->non-zero transition) */
-    if (handle_idx <= 1) {
-        bsp_boost_1_enable(1);  /* Handle A/B -> CHIP_1 */
-    } else {
-        bsp_boost_2_enable(1);  /* Handle C -> CHIP_2 */
-    }
-    rt_thread_mdelay(10);  /* Soft-start delay for boost stabilization */
+    /* V4.1: 54V boost is global (PB1), enabled by treatment start, not here.
+     * But ensure boost is on for safety (handles 0->non-zero current transition). */
+    bsp_boost_2_enable(1);  /* V4.1: Always use PB1 for global current output */
+    rt_thread_mdelay(10);
 
     /* Step 1: Shut down EVERYTHING on this chip */
-    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent mode */
+    nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH1, 0);
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
 
-    rt_kprintf("[APPLY] chip=%d target_ch=%d wf=%d cur=%u uA\n",
-               chip_id, channel, wf_id, actual_ua);
+    rt_kprintf("[APPLY] chip=%d target_ch=%d wf=%d level=%d -> %u uA\n",
+               chip_id, channel, wf_id, level, actual_ua);
 
-    /* Step 2: Enable ONLY the target channel (independent mode, no sync) */
+    /* Step 2: Enable ONLY the target channel */
     nnc6521_analog_enable(chip_id, channel);
     waveform_apply_current(chip_id, channel, wf_id, actual_ua);
 
@@ -217,23 +210,12 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Always stop AWG on old handle's channel (regardless of is_running) */
-    int old_hi = protocol_handle_index(g_dev_state.current_handle);
-    if (old_hi >= 0) {
-        handle_stop_output(old_hi);
-    }
+    /* V4.1: Do NOT stop current/waveform output during handle switch.
+     * Current and waveform are global functions, only controlled by
+     * treatment start/stop (0x05) and level=0. */
 
     /* Stop temperature periodic report */
     protocol_temp_report_stop();
-
-    /* Disable boost for the old handle */
-    if (old_hi >= 0) {
-        if (old_hi <= 1) {
-            bsp_boost_1_enable(0);  /* Handle A/B -> CHIP_1 */
-        } else {
-            bsp_boost_2_enable(0);  /* Handle C -> CHIP_2 */
-        }
-    }
 
     /* Turn off all heaters via PID reset (mutual exclusion) and pump */
     temp_pid_set_target(TEMP_PID_LARGE, 0);
@@ -241,79 +223,54 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     dac7311_set_pump_speed(0);
     bsp_pump_set(0);
 
-    /* Clear all handles' parameters */
+    /* V4.1: Only clear heating/pump params, KEEP current and waveform params */
     for (int i = 0; i < 3; i++) {
-        const waveform_config_t *cfg = waveform_get_config(g_dev_state.waveform_id);
-        g_dev_state.handle[i].current_ma = cfg ? cfg->min_current : 0;
-        g_dev_state.handle[i].current_percent = 0;  /* min_current maps to 0% */
         g_dev_state.handle[i].temperature = 0;
         g_dev_state.handle[i].pump_speed = 0;
     }
+    /* current_level and waveform_id are GLOBAL - do NOT clear them */
 
     /* Switch handle */
     g_dev_state.current_handle = handle_id;
     g_dev_state.is_running = 0;
 
-    rt_kprintf("[PROTO] Switch to handle %c (0x%02X), output stopped, params cleared\n",
+    rt_kprintf("[PROTO] Switch to handle %c (0x%02X), heating/pump cleared, current/waveform preserved\n",
                'A' + hi, handle_id);
 
     uint8_t ack_params[1] = { handle_id };
     protocol_send_ack(FUNC_HANDLE_SWITCH, ack_params, 1);
 }
 
-/**
- * @brief  Handle 0x02: Current control.
- *         para[0] = gear level (0~10, lookup table, unit μA)
- *         para[1] = target handle ID (0x0A/0x0B/0x0C)
- */
 static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
 {
-    if (param_len < 2) {
+    if (param_len < 1) {
         protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
         return;
     }
 
-    uint8_t level = params[0];       /* gear level 0~10 */
-    uint8_t handle_id = params[1];
+    uint8_t level = params[0];  /* V4.1: gear level 0~10, global */
 
     if (level > 10) {
         protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
         return;
     }
 
-    int hi = protocol_handle_index(handle_id);
-    if (hi < 0) {
-        protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
-        return;
+    /* V4.1: Save to global current_level */
+    g_dev_state.current_level = level;
+
+    /* If treatment is running, apply new current directly */
+    if (g_dev_state.is_running) {
+        int hi = protocol_handle_index(g_dev_state.current_handle);
+        if (hi >= 0) {
+            handle_apply_output(hi);
+        }
     }
 
-    /* Mutual exclusion: only allow current control on the active handle */
-    if (handle_id != g_dev_state.current_handle) {
-        rt_kprintf("[PROTO] Current rejected: handle %c is not active (current=%c)\n",
-                   'A' + hi, 'A' + protocol_handle_index(g_dev_state.current_handle));
-        protocol_send_error(FUNC_CURRENT_CTRL, ERR_PARAM);
-        return;
-    }
+    rt_kprintf("[PROTO] Current set: level=%u (global)\n", level);
 
-    /* Lookup actual current from level table (μA), A handle uses dedicated table */
-    uint8_t wf_id = g_dev_state.waveform_id;
-    const uint32_t *level_map = (hi == 0) ? g_current_level_map_a[wf_id - 1]
-                                           : g_current_level_map_bc[wf_id - 1];
-    uint32_t actual_ua = level_map[level];
-
-    /* Store new current */
-    g_dev_state.handle[hi].current_ma = actual_ua;
-
-    /* If active handle is running, apply new current directly */
-    if (handle_id == g_dev_state.current_handle && g_dev_state.is_running) {
-        handle_apply_output(hi);
-    }
-
-    rt_kprintf("[PROTO] Current set: handle %c = level %u -> %u uA\n", 'A' + hi, level, actual_ua);
-
-    /* ACK 回复：返回 [档位, handle_id] */
-    uint8_t ack_params[2] = { level, handle_id };
-    protocol_send_ack(FUNC_CURRENT_CTRL, ack_params, 2);
+    /* V4.1: ACK returns [档位] only, no handle_id */
+    uint8_t ack_params[1] = { level };
+    protocol_send_ack(FUNC_CURRENT_CTRL, ack_params, 1);
 }
 
 /**
@@ -454,8 +411,13 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
     if (action == 1) {
         g_dev_state.is_running = 1;
 
-        /* Apply waveform: handle_apply_output enables boost if current > 0,
-         * skips boost entirely if current == 0 */
+        /* V4.1: Enable global boost (PB1) for current output */
+        if (g_dev_state.current_level > 0) {
+            bsp_boost_2_enable(1);  /* PB1 = global 54V boost */
+            rt_thread_mdelay(10);   /* Soft-start delay */
+        }
+
+        /* Apply waveform with current from global level */
         handle_apply_output(hi);
 
         /* Enable pump (PB10) for handle C */
@@ -475,11 +437,14 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
             protocol_temp_report_start(g_dev_state.current_handle);
         }
 
-        rt_kprintf("[PROTO] Treatment started (boost enabled)\n");
+        rt_kprintf("[PROTO] Treatment started (global boost enabled)\n");
     } else {
-        /* Pause: stop waveform output, then disable boost */
+        /* Pause: stop waveform output */
         handle_stop_output(hi);
         g_dev_state.is_running = 0;
+
+        /* V4.1: Disable global boost (PB1) */
+        bsp_boost_2_enable(0);
 
         /* Disable pump (PB10) for handle C */
         if (hi == 2) {
@@ -498,7 +463,7 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
         /* Stop periodic temperature reporting */
         protocol_temp_report_stop();
 
-        rt_kprintf("[PROTO] Treatment paused (boost disabled)\n");
+        rt_kprintf("[PROTO] Treatment paused (global boost disabled)\n");
     }
 
     uint8_t ack_params[1] = { action };
@@ -577,29 +542,16 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
 
     g_dev_state.waveform_id = waveform_id;
 
-    /* All waveforms share 0~8mA range, percent mapping is identical.
-     * No recalculation needed on waveform switch. */
-
-    /* If treatment is running, switch waveform */
-    int hi = protocol_handle_index(g_dev_state.current_handle);
-    if (hi >= 0 && g_dev_state.is_running) {
-        uint8_t chip_id = handle_to_chip(hi);
-        uint8_t channel = handle_to_channel(hi);
-        uint32_t target_ua = g_dev_state.handle[hi].current_ma;
-
-        /* Only output if current is non-zero (level 0 = no output) */
-        if (target_ua > 0) {
-            /* Stop old waveform, configure new one at target current */
-            nnc6521_awg_enable_disable(chip_id, channel, 0);
-            nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
-            nnc6521_analog_enable(chip_id, channel);
-            waveform_apply_current(chip_id, channel, waveform_id, target_ua);
-        } else {
-            rt_kprintf("[PROTO] Waveform switch skipped: current=0\n");
+    /* V4.1: If treatment is running, apply new waveform immediately.
+     * If not running, just save - will take effect on next start. */
+    if (g_dev_state.is_running) {
+        int hi = protocol_handle_index(g_dev_state.current_handle);
+        if (hi >= 0 && g_dev_state.current_level > 0) {
+            handle_apply_output(hi);
         }
     }
 
-    rt_kprintf("[PROTO] Waveform selected: #%u\n", waveform_id);
+    rt_kprintf("[PROTO] Waveform selected: #%u (global)\n", waveform_id);
 
     uint8_t ack_params[1] = { waveform_id };
     protocol_send_ack(FUNC_WAVEFORM_SEL, ack_params, 1);
@@ -758,22 +710,12 @@ void protocol_start_waveform(void)
 {
     int hi = protocol_handle_index(g_dev_state.current_handle);
     if (hi >= 0 && g_dev_state.is_running) {
-        uint32_t cur_ua = g_dev_state.handle[hi].current_ma;
-        if (cur_ua == 0) {
-            rt_kprintf("[PROTO] Waveform start skipped: current=0\n");
+        uint8_t level = g_dev_state.current_level;
+        if (level == 0) {
+            rt_kprintf("[PROTO] Waveform start skipped: level=0\n");
             return;
         }
-        uint8_t chip_id = handle_to_chip(hi);
-        uint8_t channel = handle_to_channel(hi);
-        /* Mutual exclusion: disable the other channel on the same chip */
-        uint8_t other_ch = (channel == WAVEFORM_GEN_CH0) ? WAVEFORM_GEN_CH1 : WAVEFORM_GEN_CH0;
-        nnc6521_awg_enable_disable(chip_id, other_ch, 0);
-        nnc6521_analog_disable(chip_id, other_ch);
-        nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);  /* Independent channel control */
-        nnc6521_analog_enable(chip_id, channel);
-        waveform_apply_current(chip_id, channel,
-                               g_dev_state.waveform_id,
-                               cur_ua);
-        rt_kprintf("[PROTO] Waveform started on chip %d ch %d\n", chip_id, channel);
+        handle_apply_output(hi);
+        rt_kprintf("[PROTO] Waveform started on handle %c\n", 'A' + hi);
     }
 }
