@@ -582,6 +582,7 @@ void nnc6521_wavegen_config(uint8_t chip_id,
         wf->WG_DRIVE_REG_CTRL2.bits.out_pos = 0x04 - scale_up;
         nnc6521_write_wave_reg(chip_id, addr, wf->WG_DRIVE_REG_CTRL2.value);
 
+        /* Write waveform data to memory BEFORE enabling AWG */
         if (wf->WG_DRV_POINT_CONFIG.value > 0) {
             if (normalized_waveform_array != NULL) {
                 for (i = 0; i < driver_point; i++) {
@@ -610,7 +611,14 @@ void nnc6521_wavegen_config(uint8_t chip_id,
     nnc6521_write_wave_reg(chip_id, addr + 1,
         (wf->WG_DRV_ALT_SILENT_LIM.value >> 8) & 0xFF);
 
-    /* Finally enable waveform generator */
+    /* Write control register with enable_wavegen=0 first (configure only) */
+    {
+        uint8_t ctrl_safe = wf->WG_DRV_CTRL_REG0.value & ~0x01;  /* Clear enable_wavegen bit */
+        addr = WG_REG_ADDR(wf->CHANNEL, WG_DRV_CTRL_REG0_OFFSET);
+        nnc6521_write_wave_reg(chip_id, addr, ctrl_safe);
+    }
+
+    /* Now enable waveform generator (all data and config are ready) */
     addr = WG_REG_ADDR(wf->CHANNEL, WG_DRV_CTRL_REG0_OFFSET);
     nnc6521_write_wave_reg(chip_id, addr, wf->WG_DRV_CTRL_REG0.value);
 
