@@ -154,11 +154,6 @@ static void handle_apply_output(int handle_idx)
         return;
     }
 
-    /* V4.1: 54V boost is global (PB1), enabled by treatment start, not here.
-     * But ensure boost is on for safety (handles 0->non-zero current transition). */
-    bsp_boost_2_enable(1);  /* V4.1: Always use PB1 for global current output */
-    rt_thread_mdelay(10);
-
     /* Step 1: Shut down EVERYTHING on this chip */
     nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);
     nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
@@ -409,13 +404,18 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
     }
 
     if (action == 1) {
+        /* V4.1: Reject start if current level is 0 (no current configured) */
+        if (g_dev_state.current_level == 0) {
+            rt_kprintf("[PROTO] Start rejected: current_level=0\n");
+            protocol_send_error(FUNC_START_PAUSE, ERR_PARAM);
+            return;
+        }
+
         g_dev_state.is_running = 1;
 
         /* V4.1: Enable global boost (PB1) for current output */
-        if (g_dev_state.current_level > 0) {
-            bsp_boost_2_enable(1);  /* PB1 = global 54V boost */
-            rt_thread_mdelay(10);   /* Soft-start delay */
-        }
+        bsp_boost_2_enable(1);  /* PB1 = global 54V boost */
+        rt_thread_mdelay(10);   /* Soft-start delay */
 
         /* Apply waveform with current from global level */
         handle_apply_output(hi);
