@@ -232,7 +232,9 @@ void nnc6521_customized_waveform(uint8_t chip_id,
     wf.WG_DRV_REST_CLK.value = u16_Rest_Time;
     wf.WG_DRV_CTRL_REG0.bits.enable_wavegen = 1;
     wf.WG_DRV_CTRL_REG0.bits.waveform_select = WAVEFORM_SPI;
-    wf.WG_DRV_CTRL_REG0.bits.preload_mode = 0;
+    /* NOTE: Do NOT overwrite preload_mode here. For asymmetric mode (u8_Asymmetric_Symmetric==0),
+     * preload_mode=1 is set above to indicate 128-point continuous array.
+     * Overwriting to 0 causes only 64 points to be written, losing the negative half. */
 
     nnc6521_wavegen_config(chip_id, &wf, f_Normalized_array, u32_Max_current);
 }
