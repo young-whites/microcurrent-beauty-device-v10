@@ -161,8 +161,8 @@ static void handle_apply_output(int handle_idx)
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
     nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
 
-    rt_kprintf("[APPLY] chip=%d target_ch=%d wf=%d level=%d -> %u uA\n",
-               chip_id, channel, wf_id, level, actual_ua);
+    rt_kprintf("[APPLY] chip=%d ch=%d wf=%d lv=%d -> %u uA (map[%d][%d])\n",
+               chip_id, channel, wf_id, level, actual_ua, wf_id - 1, level);
 
     /* Step 2: Enable ONLY the target channel */
     nnc6521_analog_enable(chip_id, channel);
@@ -252,6 +252,7 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
 
     /* V4.1: Save to global current_level */
     g_dev_state.current_level = level;
+    rt_kprintf("[PROTO] current_level saved = %u\n", level);
 
     /* If treatment is running, apply new current directly */
     if (g_dev_state.is_running) {
@@ -411,6 +412,10 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
             return;
         }
 
+        rt_kprintf("[PROTO] >>> START: handle=0x%02X wf=%d level=%d\n",
+                   g_dev_state.current_handle, g_dev_state.waveform_id,
+                   g_dev_state.current_level);
+
         g_dev_state.is_running = 1;
 
         /* V4.1: Enable global boost (PB1) for current output */
@@ -541,6 +546,7 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
     }
 
     g_dev_state.waveform_id = waveform_id;
+    rt_kprintf("[PROTO] waveform_id saved = %u\n", waveform_id);
 
     /* V4.1: If treatment is running, apply new waveform immediately.
      * If not running, just save - will take effect on next start. */
