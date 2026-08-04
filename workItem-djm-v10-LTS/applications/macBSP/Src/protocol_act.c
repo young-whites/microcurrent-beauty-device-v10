@@ -27,8 +27,10 @@
 
 static uint8_t handle_to_chip(int handle_idx)
 {
-    /* Handle A(0), B(1) -> CHIP_1; Handle C(2) -> CHIP_2 */
-    return (handle_idx <= 1) ? NNC6521_CHIP_1 : NNC6521_CHIP_2;
+    /* Handle A(0) -> CHIP_2 (NNC6521-2 CH0, 54V from LGS6302EP-2/PB1)
+     * Handle B(1) -> CHIP_1
+     * Handle C(2) -> CHIP_2 */
+    return (handle_idx == 1) ? NNC6521_CHIP_1 : NNC6521_CHIP_2;
 }
 
 static uint8_t handle_to_channel(int handle_idx)
