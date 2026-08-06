@@ -421,14 +421,14 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
 
             /* Apply waveform with current from global level */
             handle_apply_output(hi);
-
-            /* Enable pump (PB10) for handle C */
-            if (hi == 2) {
-                bsp_pump_set(1);
-                rt_kprintf("[PROTO] Pump enabled (handle C)\n");
-            }
         } else {
-            rt_kprintf("[PROTO] Current output skipped: level=0 (PID/heat only)\n");
+            rt_kprintf("[PROTO] Current output skipped: level=0\n");
+        }
+
+        /* Enable pump (PB10) for handle C (independent of current level) */
+        if (hi == 2) {
+            bsp_pump_set(1);
+            rt_kprintf("[PROTO] Pump enabled (handle C)\n");
         }
 
         /* Enable PID temperature control if target is set (independent of current) */
