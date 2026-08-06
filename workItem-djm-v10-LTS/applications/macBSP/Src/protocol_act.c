@@ -444,6 +444,17 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
             protocol_temp_report_start(g_dev_state.current_handle);
         }
 
+        /* Debug: log PID state after start */
+        {
+            int8_t pid_chk = s_handle_to_pid[hi];
+            if (pid_chk >= 0) {
+                rt_kprintf("[PROTO] PID state: enabled=%d target=%.1f preheat=%d\n",
+                           temp_pid_is_enabled(pid_chk),
+                           temp_pid_get_target(pid_chk),
+                           temp_pid_get(pid_chk)->preheat_active);
+            }
+        }
+
         rt_kprintf("[PROTO] Treatment started (global boost enabled)\n");
     } else {
         /* Pause: stop waveform output */

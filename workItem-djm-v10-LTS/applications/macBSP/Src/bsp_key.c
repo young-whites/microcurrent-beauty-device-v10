@@ -174,10 +174,11 @@ void KEY_Scan(void)
 						if (power_get_state() == POWER_STATE_OFF) {
 							Flag.power_boot_request = 1;
 							rt_kprintf("[KEY] Power button pressed, boot requested\n");
-						} else {
+						} else if (power_get_state() == POWER_STATE_ON) {
 							Flag.power_shutdown_request = 1;
 							rt_kprintf("[KEY] Power button pressed, shutdown requested\n");
 						}
+						/* POWER_STATE_BOOTING / WAIT_CONFIRM / SHUTTING_DOWN: ignore */
 						break;
 				}
 			} break;

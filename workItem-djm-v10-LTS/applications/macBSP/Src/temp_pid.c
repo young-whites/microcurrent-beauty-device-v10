@@ -848,6 +848,14 @@ void temp_pid_tick(void)
 
         /* Skip if not enabled (no target set) */
         if (!pid->enabled) {
+            /* Debug: periodically log why PID is not computing */
+            static uint8_t skip_cnt[TEMP_PID_COUNT] = {0};
+            if (++skip_cnt[i] >= 50) {  /* Log every ~5s (50 x 100ms) */
+                skip_cnt[i] = 0;
+                rt_kprintf("[PID-SKIP] %c: en=%d tgt=%d.%d\n",
+                           (i==0)?'B':'A', pid->enabled,
+                           (int)pid->target_temp, ((int)(pid->target_temp*10))%10);
+            }
             if (pid->heater_on) {
                 heater_set(i, 0);
             }
