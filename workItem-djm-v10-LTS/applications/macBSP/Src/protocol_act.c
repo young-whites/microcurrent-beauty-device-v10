@@ -407,36 +407,36 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
     }
 
     if (action == 1) {
-        /* V4.1: Reject start if current level is 0 (no current configured) */
-        if (g_dev_state.current_level == 0) {
-            rt_kprintf("[PROTO] Start rejected: current_level=0\n");
-            protocol_send_error(FUNC_START_PAUSE, ERR_PARAM);
-            return;
-        }
-
         rt_kprintf("[PROTO] >>> START: handle=0x%02X wf=%d level=%d\n",
                    g_dev_state.current_handle, g_dev_state.waveform_id,
                    g_dev_state.current_level);
 
         g_dev_state.is_running = 1;
 
-        /* V4.1: Enable global boost (PB1) for current output */
-        bsp_boost_2_enable(1);  /* PB1 = global 54V boost */
-        rt_thread_mdelay(10);   /* Soft-start delay */
+        /* V4.1: Enable current output only if current_level > 0 */
+        if (g_dev_state.current_level > 0) {
+            /* Enable global boost (PB1) for current output */
+            bsp_boost_2_enable(1);  /* PB1 = global 54V boost */
+            rt_thread_mdelay(10);   /* Soft-start delay */
 
-        /* Apply waveform with current from global level */
-        handle_apply_output(hi);
+            /* Apply waveform with current from global level */
+            handle_apply_output(hi);
 
-        /* Enable pump (PB10) for handle C */
-        if (hi == 2) {
-            bsp_pump_set(1);
-            rt_kprintf("[PROTO] Pump enabled (handle C)\n");
+            /* Enable pump (PB10) for handle C */
+            if (hi == 2) {
+                bsp_pump_set(1);
+                rt_kprintf("[PROTO] Pump enabled (handle C)\n");
+            }
+        } else {
+            rt_kprintf("[PROTO] Current output skipped: level=0 (PID/heat only)\n");
         }
 
-        /* Enable PID temperature control if target is set */
+        /* Enable PID temperature control if target is set (independent of current) */
         int8_t pid_idx = s_handle_to_pid[hi];
         if (pid_idx >= 0 && temp_pid_get_target(pid_idx) > 0) {
             temp_pid_set_enable(pid_idx, 1);
+            rt_kprintf("[PROTO] PID enabled for handle %c, target=%.1f\n",
+                       'A' + hi, temp_pid_get_target(pid_idx));
         }
 
         /* Start periodic temperature reporting for handles with NTC */
@@ -455,7 +455,7 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
             }
         }
 
-        rt_kprintf("[PROTO] Treatment started (global boost enabled)\n");
+        rt_kprintf("[PROTO] Treatment started\n");
     } else {
         /* Pause: stop waveform output */
         handle_stop_output(hi);
