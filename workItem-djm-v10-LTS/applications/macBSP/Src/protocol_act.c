@@ -27,10 +27,12 @@
 
 static uint8_t handle_to_chip(int handle_idx)
 {
-    /* Handle A(0) -> CHIP_2 (NNC6521-2 CH0, 54V from LGS6302EP-2/PB1)
-     * Handle B(1) -> CHIP_1
-     * Handle C(2) -> CHIP_2 */
-    return (handle_idx == 1) ? NNC6521_CHIP_1 : NNC6521_CHIP_2;
+    /* V4.2: CHIP_1 disabled - all handles use CHIP_2
+     * Handle A(0) -> CHIP_2 CH0
+     * Handle B(1) -> CHIP_2 CH1
+     * Handle C(2) -> CHIP_2 CH0 */
+    (void)handle_idx;
+    return NNC6521_CHIP_2;
 }
 
 static uint8_t handle_to_channel(int handle_idx)
@@ -706,19 +708,12 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
  */
 void protocol_stop_waveform(void)
 {
-    /* Stop temperature periodic report */
     protocol_temp_report_stop();
-
-    /* Disable global drive + AWG + analog on all channels of both chips */
-    nnc6521_write_reg(NNC6521_CHIP_1, WAVEGEN_GLOBAL_REG_0, 0x00);
     nnc6521_write_reg(NNC6521_CHIP_2, WAVEGEN_GLOBAL_REG_0, 0x00);
-    nnc6521_awg_enable_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0, 0);
-    nnc6521_awg_enable_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1, 0);
     nnc6521_awg_enable_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0, 0);
-    nnc6521_analog_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH0);
-    nnc6521_analog_disable(NNC6521_CHIP_1, WAVEFORM_GEN_CH1);
+    nnc6521_awg_enable_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH1, 0);
     nnc6521_analog_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);
-    rt_kprintf("[PROTO] All waveform output stopped (global+AWG+analog)\n");
+    rt_kprintf("[PROTO] All waveform output stopped (CHIP_2 only)\n");
 }
 
 /**

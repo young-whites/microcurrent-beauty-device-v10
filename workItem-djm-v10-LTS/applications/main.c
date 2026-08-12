@@ -69,7 +69,7 @@ int main(void)
 
   /* Initialize NNC6521 waveform generator */
   nnc6521_gpio_init();
-  nnc6521_init(NNC6521_CHIP_1);
+  /* CHIP_1 disabled - Hand A/B not used (V4.2) */
   nnc6521_init(NNC6521_CHIP_2);
   /* Analog enable removed: only enable when treatment starts (handle_apply_output)
    * to prevent unexpected current output at boot before gear level is set */
