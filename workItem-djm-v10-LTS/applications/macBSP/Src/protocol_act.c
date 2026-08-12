@@ -142,6 +142,14 @@ static void handle_stop_output(int handle_idx)
 
 static void handle_apply_output(int handle_idx)
 {
+    /* Safety: never enable current output when level is 0.
+     * Must stop full chip (both channels + global reg) to prevent
+     * residual current from a previously active handle. */
+    if (g_dev_state.current_level == 0) {
+        handle_stop_output(handle_idx);
+        return;
+    }
+
     uint8_t chip_id = handle_to_chip(handle_idx);
     uint8_t wf_id   = g_dev_state.waveform_id;
     uint8_t level   = g_dev_state.current_level;
@@ -209,9 +217,17 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* V4.1: Do NOT stop current/waveform output during handle switch.
-     * Current and waveform are global functions, only controlled by
-     * treatment start/stop (0x05) and level=0. */
+    /* Stop current output on previous handle to prevent residual current
+     * on the wrong handle during/after switch. */
+    {
+        int prev_hi = protocol_handle_index(g_dev_state.current_handle);
+        if (prev_hi >= 0) {
+            handle_stop_output(prev_hi);
+        }
+    }
+
+    /* Disable global 54V boost (PB1) - only re-enabled on start if level>0 */
+    bsp_boost_2_enable(0);
 
     /* Stop temperature periodic report */
     protocol_temp_report_stop();
@@ -258,11 +274,17 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
     g_dev_state.current_level = level;
     rt_kprintf("[PROTO] current_level saved = %u\n", level);
 
-    /* If treatment is running, apply new current directly */
+    /* If treatment is running, update current output */
     if (g_dev_state.is_running) {
         int hi = protocol_handle_index(g_dev_state.current_handle);
         if (hi >= 0) {
-            handle_apply_output(hi);
+            if (level > 0) {
+                handle_apply_output(hi);
+            } else {
+                /* Level 0: stop all current output on this chip */
+                handle_stop_output(hi);
+                rt_kprintf("[PROTO] Current stopped: level set to 0\n");
+            }
         }
     }
 
@@ -424,7 +446,10 @@ static void handle_start_pause(const uint8_t *params, uint8_t param_len)
             /* Apply waveform with current from global level */
             handle_apply_output(hi);
         } else {
-            rt_kprintf("[PROTO] Current output skipped: level=0\n");
+            /* Level 0: actively stop any residual current output
+             * (e.g. from a previously active handle before switch) */
+            handle_stop_output(hi);
+            rt_kprintf("[PROTO] Current output blocked: level=0\n");
         }
 
         /* Enable pump (PB10) for handle C (independent of current level) */
