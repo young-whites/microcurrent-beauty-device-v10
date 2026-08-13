@@ -37,8 +37,10 @@ static uint8_t handle_to_chip(int handle_idx)
 
 static uint8_t handle_to_channel(int handle_idx)
 {
-    /* Handle A(0) -> CH0, Handle B(1) -> CH1, Handle C(2) -> CH0 */
-    return (handle_idx == 1) ? WAVEFORM_GEN_CH1 : WAVEFORM_GEN_CH0;
+    /* V5.0: All handles use CHIP_2 CH0 for microcurrent output.
+     * Microcurrent is a global independent channel, not per-handle. */
+    (void)handle_idx;
+    return WAVEFORM_GEN_CH0;
 }
 
 /* Handle A -> small heater, Handle B -> large heater, Handle C -> no heater */
@@ -155,9 +157,8 @@ static void handle_apply_output(int handle_idx)
     uint8_t level   = g_dev_state.current_level;
     uint8_t channel = handle_to_channel(handle_idx);
 
-    /* Lookup actual current from global level table */
-    const uint32_t *level_map = (handle_idx == 0) ? g_current_level_map_a[wf_id - 1]
-                                                   : g_current_level_map_bc[wf_id - 1];
+    /* V5.0: All handles share the same global current level table */
+    const uint32_t *level_map = g_current_level_map_a[wf_id - 1];
     uint32_t actual_ua = level_map[level];
 
     if (actual_ua == 0) {
@@ -166,12 +167,10 @@ static void handle_apply_output(int handle_idx)
         return;
     }
 
-    /* Step 1: Shut down EVERYTHING on this chip */
+    /* Step 1: Shut down target channel + global */
     nnc6521_write_reg(chip_id, WAVEGEN_GLOBAL_REG_0, 0x00);
-    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH0, 0);
-    nnc6521_awg_enable_disable(chip_id, WAVEFORM_GEN_CH1, 0);
-    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH0);
-    nnc6521_analog_disable(chip_id, WAVEFORM_GEN_CH1);
+    nnc6521_awg_enable_disable(chip_id, channel, 0);
+    nnc6521_analog_disable(chip_id, channel);
 
     rt_kprintf("[APPLY] chip=%d ch=%d wf=%d lv=%d -> %u uA (map[%d][%d])\n",
                chip_id, channel, wf_id, level, actual_ua, wf_id - 1, level);
@@ -240,15 +239,12 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
     /* Switch handle */
     g_dev_state.current_handle = handle_id;
 
-    /* Reconfigure output for new handle if treatment is running.
-     * Different handles map to different NNC6521 channels
-     * (A->CH0, B->CH1, C->CH0), so output must be re-applied. */
+    /* Reconfigure output after handle switch to ensure NNC6521 state is correct */
     if (g_dev_state.is_running && g_dev_state.current_level > 0) {
         bsp_boost_2_enable(1);
         rt_thread_mdelay(10);
         handle_apply_output(hi);
-        rt_kprintf("[PROTO] Output reconfigured for handle %c after switch
-", 'A' + hi);
+        rt_kprintf("[PROTO] Output reconfigured for handle %c after switch", 'A' + hi);
     }
 
     rt_kprintf("[PROTO] Switch to handle %c (0x%02X), heating/pump cleared, current/waveform preserved\n",
