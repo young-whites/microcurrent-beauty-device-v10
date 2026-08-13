@@ -438,7 +438,6 @@ int protocol_init(void)
     g_dev_state.waveform_id    = WAVEFORM_POWER_SMOOTH;  /* Default waveform */
     g_dev_state.current_level  = 0;  /* V4.1: default current level */
     g_dev_state.is_running     = 0;
-    g_dev_state.aging_mode     = 0;
 
     /* Initialize ring buffer */
     s_rx_ring.head = 0;

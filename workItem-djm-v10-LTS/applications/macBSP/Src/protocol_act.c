@@ -217,17 +217,9 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
         return;
     }
 
-    /* Stop current output on previous handle to prevent residual current
-     * on the wrong handle during/after switch. */
-    {
-        int prev_hi = protocol_handle_index(g_dev_state.current_handle);
-        if (prev_hi >= 0) {
-            handle_stop_output(prev_hi);
-        }
-    }
-
-    /* Disable global 54V boost (PB1) - only re-enabled on start if level>0 */
-    bsp_boost_2_enable(0);
+    /* V5.0: Microcurrent output (CHIP_2 CH0 + 54V PB1) is INDEPENDENT
+     * of handle switching. Do NOT stop current or disable boost here.
+     * Current output is only controlled by start/pause + current_level. */
 
     /* Stop temperature periodic report */
     protocol_temp_report_stop();
@@ -247,7 +239,17 @@ static void handle_switch(const uint8_t *params, uint8_t param_len)
 
     /* Switch handle */
     g_dev_state.current_handle = handle_id;
-    g_dev_state.is_running = 0;
+
+    /* Reconfigure output for new handle if treatment is running.
+     * Different handles map to different NNC6521 channels
+     * (A->CH0, B->CH1, C->CH0), so output must be re-applied. */
+    if (g_dev_state.is_running && g_dev_state.current_level > 0) {
+        bsp_boost_2_enable(1);
+        rt_thread_mdelay(10);
+        handle_apply_output(hi);
+        rt_kprintf("[PROTO] Output reconfigured for handle %c after switch
+", 'A' + hi);
+    }
 
     rt_kprintf("[PROTO] Switch to handle %c (0x%02X), heating/pump cleared, current/waveform preserved\n",
                'A' + hi, handle_id);
@@ -279,10 +281,14 @@ static void handle_current_ctrl(const uint8_t *params, uint8_t param_len)
         int hi = protocol_handle_index(g_dev_state.current_handle);
         if (hi >= 0) {
             if (level > 0) {
+                /* Enable 54V boost (PB1) before configuring output */
+                bsp_boost_2_enable(1);
+                rt_thread_mdelay(10);  /* Wait for 54V rail to stabilize */
                 handle_apply_output(hi);
             } else {
-                /* Level 0: stop all current output on this chip */
+                /* Level 0: stop all current output and disable boost */
                 handle_stop_output(hi);
+                bsp_boost_2_enable(0);
                 rt_kprintf("[PROTO] Current stopped: level set to 0\n");
             }
         }
@@ -525,39 +531,6 @@ static void handle_ota_upgrade(const uint8_t *params, uint8_t param_len)
 }
 
 /**
- * @brief  Handle 0x07: Factory aging mode.
- *         para[0] = 0=exit aging, 1=enter aging
- */
-static void handle_aging_mode(const uint8_t *params, uint8_t param_len)
-{
-    if (param_len < 1) {
-        protocol_send_error(FUNC_AGING_MODE, ERR_PARAM);
-        return;
-    }
-
-    uint8_t action = params[0];
-
-    if (action > 1) {
-        protocol_send_error(FUNC_AGING_MODE, ERR_PARAM);
-        return;
-    }
-
-    /* Stop output when entering aging mode */
-    if (action == 1 && g_dev_state.is_running) {
-        int hi = protocol_handle_index(g_dev_state.current_handle);
-        if (hi >= 0) handle_stop_output(hi);
-    }
-
-    g_dev_state.aging_mode = action;
-    g_dev_state.is_running = 0;
-
-    rt_kprintf("[PROTO] Aging mode %s\n", action ? "entered" : "exited");
-
-    uint8_t ack_params[1] = { action };
-    protocol_send_ack(FUNC_AGING_MODE, ack_params, 1);
-}
-
-/**
  * @brief  Handle 0x08: Read firmware version (no params).
  */
 static void handle_read_version(void)
@@ -593,6 +566,9 @@ static void handle_waveform_sel(const uint8_t *params, uint8_t param_len)
     if (g_dev_state.is_running) {
         int hi = protocol_handle_index(g_dev_state.current_handle);
         if (hi >= 0 && g_dev_state.current_level > 0) {
+            /* Ensure 54V boost is enabled before applying waveform */
+            bsp_boost_2_enable(1);
+            rt_thread_mdelay(10);
             handle_apply_output(hi);
         }
     }
@@ -698,7 +674,6 @@ void protocol_dispatch(uint8_t *buf, uint8_t cmd_len)
             case FUNC_PUMP_CTRL:     handle_pump_ctrl(&buf[6], param_len);    break;
             case FUNC_START_PAUSE:   handle_start_pause(&buf[6], param_len);  break;
             case FUNC_OTA_UPGRADE:   handle_ota_upgrade(&buf[6], param_len);  break;
-            case FUNC_AGING_MODE:    handle_aging_mode(&buf[6], param_len);   break;
             case FUNC_READ_VERSION:  handle_read_version();                   break;
             case FUNC_WAVEFORM_SEL:  handle_waveform_sel(&buf[6], param_len); break;
             case FUNC_PID_AUTOTUNE:  handle_pid_autotune(&buf[6], param_len); break;
@@ -738,6 +713,7 @@ void protocol_stop_waveform(void)
     nnc6521_awg_enable_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0, 0);
     nnc6521_awg_enable_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH1, 0);
     nnc6521_analog_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH0);
+    nnc6521_analog_disable(NNC6521_CHIP_2, WAVEFORM_GEN_CH1);
     rt_kprintf("[PROTO] All waveform output stopped (CHIP_2 only)\n");
 }
 
