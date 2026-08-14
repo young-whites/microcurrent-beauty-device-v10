@@ -49,7 +49,6 @@ extern "C" {
 #define FUNC_PUMP_CTRL      0x04        /* Pump speed control (0~100%) */
 #define FUNC_START_PAUSE    0x05        /* Start/Pause treatment */
 #define FUNC_OTA_UPGRADE    0x06        /* Remote firmware upgrade (reserved) */
-#define FUNC_AGING_MODE     0x07        /* Factory aging test mode */
 #define FUNC_READ_VERSION   0x08        /* Read firmware version */
 #define FUNC_WAVEFORM_SEL   0x09        /* Waveform selection (1~9) */
 #define FUNC_SHUTDOWN_REQ   0x0A        /* Shutdown request (device -> upper machine) */
@@ -131,7 +130,6 @@ typedef struct {
     uint8_t waveform_id;                /* Current waveform selection (1~9) */
     uint8_t current_level;              /* Global current gear level (0~10, 0=off) - V4.1 */
     uint8_t is_running;                 /* Treatment running flag (0=pause, 1=running) */
-    uint8_t aging_mode;                 /* Factory aging mode flag */
     handle_params_t handle[3];          /* Parameters for handle A/B/C (index 0/1/2) */
 } device_state_t;
 
